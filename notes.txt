@@ -1,0 +1,44 @@
+Database schema:
+Currently, all chat data is stored in an on-disk SQLite database. We define the 
+following tables.
+
+Clients: 
+  user_id INTEGER: A unique id per user.
+  user_name TEXT: A user's display name. Currently does not have to be unique 
+    but we may enforce uniqueness in the future.
+Chats: 
+We currently enforce only two participants per chat, but will support group 
+chats eventually.
+  chat_id INTEGER: A unique id per chat.
+  user1_id INTEGER: The user_id of the first chat participant. Guaranteed to be
+    less that user2_id.
+  user2_id INTEGER: The user_id of the second chat participant. Guaranteed to be
+    greater that user1_id.
+Messages: 
+  message_id INTEGER: A unique id per message. 
+  chat_id: The id of the chat this message belongs to.
+  user_id: The id of the user who sent this message.
+  timestamp: The timestamp when the server received this message. N.B. that 
+    using timestamp to sort chat messages can lead to ordering issues, 
+    particularly in the case when we have more than one server. OK for now.
+
+
+Better server processes:
+Currently, the server uses a separate process for each client. Ultimately, 
+processes should be decoupled from clients so the server can scale to handle 
+many more clients. One option for this is to have a client queue which is shared
+across processes. Each client is put on the queue and worker processes take 
+clients off the queue, process them, and place them at the end of the queue. 
+
+Of course, there are a number of issues with this approach: 
+  1. The queue could become a bottleneck if there is a lot of contention from
+     many processes reading and writing at the same time. 
+  2. Clients could become starved if all processes are busy handling big 
+     requests. We could maybe mitigate this with some kind of async 
+     programming.
+  3. Since we're using processes for "multithreading", context switching 
+     between clients all the time could have high overhead.
+
+A related approach could be to have multiple client queues and assign subsets of
+processes to each queue. While this can mitigate issues 1, issues 2 and 3 would
+still pose problems.

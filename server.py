@@ -2,7 +2,7 @@
 
 See the 'socket_lib' module for the client-server communication protocol.
 
-Currently, a separate thread is created for each client.
+Currently, a separate process is created for each client.
 """
 
 import collections
@@ -27,11 +27,15 @@ class Client:
 
 
 class Worker(multiprocessing.Process):
-    def __init__(self, client, client_table):
+    """A worker process which handles a single client."""
+
+    def __init__(self, client, client_table, client_db):
         """Initializes a new Worker instance.
         
         Args:
-            client_manager: Table holding all clients connections to the server.
+            client: The Client this worker is handling.
+            client_table: Table holding all clients connections to the server.
+            client_db: Table holding chat data.
         """
         super().__init__()
         self._client = client
@@ -43,16 +47,19 @@ class Worker(multiprocessing.Process):
             # Route all messages from the sender to the receiver.
             messages = socket_lib.recv_all_messages(self._client.socket)
             for message in messages:
-                from_, to, text = message['from'], message['to'], message['text']
+                sender = message['sender']
                 if not self._client_id:
-                    self._client_id = from_
-                    self._client_table[from_] = self._client
-                assert from_ == self._client_id
-                message = {'from': from_, 'to': to, 'text':  text}
+                    self._client_id = sender
+                    self._client_table[sender] = self._client
+                assert sender == self._client_id
+                receiver, text = message['receiver'], message['text']
+                message = {
+                    'sender': sender, 'receiver': receiver, 'text': text
+                }
                 # TODO(eugenhotaj): Store messages if receiver is not online.
-                if to in self._client_table:
+                if receiver in self._client_table:
                     socket_lib.send_message(
-                            self._client_table[to].socket, message)
+                            self._client_table[receiver].socket, message)
 
         # Remove the client from the client_table once the connection is over.
         del self._client_table[self._client_id]
@@ -74,8 +81,12 @@ if __name__ == '__main__':
     server_socket.bind((constants.LOCALHOST, constants.LOCALHOST_PORT))
     server_socket.listen(CONNECTION_BACKLOG)
 
-    # Holds the client connections in memory shared across workers.
-    client_table = multiprocessing.Manager().dict()
+    # Holds client data in shared memory across workers.
+    client_manager = multiprocessing.Manager()
+    client_table = client_manager.dict()
+    # TODO(eugenhotaj): Use an actual database here instead of storing things
+    # in memory.
+    client_db = client_manager.dict()
 
     workers = []
 

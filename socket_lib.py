@@ -8,12 +8,13 @@ transmitted over the wire.
 
 The JSON messages contain the following fields:
     message = {
-        from: 0123456789
-        to: 9876543210
+        sender: 0123456789
+        receiver: 9876543210
         text: 'This is my message'
     }
 """
 
+import collections
 import errno
 import json
 
