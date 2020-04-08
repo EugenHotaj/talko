@@ -1,3 +1,6 @@
+# Ignore vim swap files.
+*.swp
+
 # Ignore SQLite database files.
 *.db
 
