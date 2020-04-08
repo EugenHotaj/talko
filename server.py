@@ -88,7 +88,7 @@ class Worker(multiprocessing.Process):
 def _keep_if_alive(process):
     """Keeps a process if it is alive, otherwise closes it."""
     is_alive = process.is_alive()
-    if is_alive:
+    if not is_alive:
         process.close()
         print(f'Connection from {process.client.address} closed')
     return is_alive
