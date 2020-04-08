@@ -5,17 +5,18 @@ See the 'socket_lib' module for the client-server communication protocol.
 Currently, a separate process is created for each client.
 """
 
-import collections
+import argparse
 import multiprocessing
 import socket
+import time
 
 import constants
+import database_lib
 import socket_lib
 
 CONNECTION_BACKLOG = 3
 # NOTE(eugenhotaj): We use processes instead of threads to get around the GIL.
 MAX_WORKERS = 10
-
 
 class Client:
     """A data cotainer which wraps client connections."""
@@ -29,51 +30,72 @@ class Client:
 class Worker(multiprocessing.Process):
     """A worker process which handles a single client."""
 
-    def __init__(self, client, client_table, client_db):
+    def __init__(self, client, client_table, db_path):
         """Initializes a new Worker instance.
         
         Args:
             client: The Client this worker is handling.
             client_table: Table holding all clients connections to the server.
-            client_db: Table holding chat data.
+            db_path: The path to the SQLite database.
         """
         super().__init__()
-        self._client = client
+        self.client = client
         self._client_table = client_table
-        self._client_id = None
+        self._db_path = db_path 
+
+        # These values are set at process runtime.
+        self._user_id = None
+        self._database = None
 
     def run(self):
         while True:
-            # Route all messages from the sender to the receiver.
-            messages = socket_lib.recv_all_messages(self._client.socket)
+            if not self._database:
+                self._database = database_lib.Database(self._db_path)
+
+            try: 
+                messages = socket_lib.recv_all_messages(self.client.socket)
+            finally:
+                # Remove our client from client_table if the socket disconnects.
+                if self._user_id in self._client_table:
+                    del self._client_table[self._user_id]
+                break
+            # TODO(eugenhotaj): We may want to generate the timestamp per 
+            # message if we need more granualarity.
+            ts = int(time.time() * MILLIS_PER_SEC)
             for message in messages:
-                sender = message['sender']
-                if not self._client_id:
-                    self._client_id = sender
-                    self._client_table[sender] = self._client
-                assert sender == self._client_id
-                receiver, text = message['receiver'], message['text']
-                message = {
-                    'sender': sender, 'receiver': receiver, 'text': text
-                }
-                # TODO(eugenhotaj): Store messages if receiver is not online.
-                if receiver in self._client_table:
+                user_id = message['user_id']
+                if not self._user_id:
+                    self._user_id = user_id 
+                    self._client_table[user_id] = self.client
+                assert user_id == self._user_id
+
+                chat_id = message['chat_id']
+                message_text = message['message_text']
+                # First, insert the new message into the database.
+                self._database.insert_message(
+                        chat_id, user_id, message_text, ts)
+                # Then, send the message to all active receivers.
+                chat = self._database.get_chat(chat_id)
+                receivers = [
+                        receiver for receiver in chat.user_ids
+                        if receiver != user_id and receiver in self._client_table
+                ]
+                for receiver in receivers:
                     socket_lib.send_message(
                             self._client_table[receiver].socket, message)
-
-        # Remove the client from the client_table once the connection is over.
-        del self._client_table[self._client_id]
 
 
 def _keep_if_alive(process):
     """Keeps a process if it is alive, otherwise closes it."""
-    if not process.is_alive():
+    is_alive = process.is_alive()
+    if is_alive:
         process.close()
-        print(f'Connection from {process.address}:{process.port} closed')
-    return process.is_alive()
+        print(f'Connection from {process.client.address} closed')
+    return is_alive
 
 
-if __name__ == '__main__':
+def serve_forever(db_path):
+    """Serves client sockets forever."""
     # Set up the server socket.
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setblocking(False)
@@ -81,27 +103,34 @@ if __name__ == '__main__':
     server_socket.bind((constants.LOCALHOST, constants.LOCALHOST_PORT))
     server_socket.listen(CONNECTION_BACKLOG)
 
-    # Holds client data in shared memory across workers.
-    client_manager = multiprocessing.Manager()
-    client_table = client_manager.dict()
-    # TODO(eugenhotaj): Use an actual database here instead of storing things
-    # in memory.
-    client_db = client_manager.dict()
+    # Holds client connections in shared memory across workers.
+    client_table = multiprocessing.Manager().dict()
 
     workers = []
-
     while True:
+        result = socket_lib.accept(server_socket)
+        if result is None:
+            continue
+
+        client_socket, address_info = result
         workers = [worker for worker in workers if _keep_if_alive(worker)]
-
-        client = Client(*socket_lib.accept(server_socket, block=True))
-        print(f'Connection from {client.address} established')
-
-        # If the server is overloaded, start shedding new connections.
-        if len(workers) >= MAX_WORKERS:
+        if len(workers) <MAX_WORKERS:
+            client = Client(client_socket, address_info)
+            worker = Worker(client, client_table, FLAGS.db_path)
+            worker.start()
+            workers.append(worker)
+            print(f'Connection from {client.address} established')
+        else:
+            # If the server is overloaded, shed any new connections.
+            socket.shutdown(socket.SHUT_RDWR)
+            socket.close()
             print(f'Connection from {client.address} shed: server overloaded')
-            client.socket.shutdown(socket.SHUT_RDWR)
-            client.socket.close()
 
-        worker = Worker(client, client_table)
-        worker.start()
-        workers.append(worker)
+
+if __name__ == '__main__':
+    # Parse flags.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--db_path', type=str, required=True, 
+                        help='Path to the SQLite chat database')
+    FLAGS = parser.parse_args()
+    serve_forever(FLAGS.db_path)

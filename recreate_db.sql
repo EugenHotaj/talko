@@ -12,7 +12,12 @@ CREATE TABLE Chats
 CREATE INDEX ChatByUser1IdIndex ON Chats (user1_id);
 CREATE INDEX ChatByUser2IdIndex ON Chats (user2_id);
 
+-- TODO(eugenhotaj): Set up chat_id as a foreign key.
 -- Definition of chat Messages table and index.
 CREATE TABLE Messages 
-  (message_id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL);
+  (message_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+   chat_id INTEGER NOT NULL,
+   user_id INTEGER NOT NULL,
+   message_text TEXT NOT NULL,
+   message_ts INTEGER NOT NULL);
 CREATE INDEX MessagesByChatIdIndex ON Messages (chat_id);

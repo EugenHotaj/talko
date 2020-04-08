@@ -6,11 +6,13 @@ integer indicating the size of the payload in bytes. The payload is a JSON
 encoded string. Messages are encoded to bytes via utf-8 encoding before being
 transmitted over the wire.
 
-The JSON messages contain the following fields:
+The JSON messages contain the following fields. Note that user_id and user_name
+correspond to the user that sent the message.
     message = {
-        sender: 0123456789
-        receiver: 9876543210
-        text: 'This is my message'
+        chat_id: 0123456789
+        user_id: 9876543210
+        user_name: 'TheOne'
+        message_text: 'Hello, world!'
     }
 """
 
@@ -19,7 +21,7 @@ import errno
 import json
 
 HEADER_BYTES = 10
-PACKET_BYTES = 16
+PACKET_BYTES = 4096
 
 
 def accept(socket, block=False):
