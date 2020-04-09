@@ -11,7 +11,7 @@ import socket
 import time
 
 import constants
-import database_lib
+import database_client 
 import socket_lib
 
 CONNECTION_BACKLOG = 3
@@ -50,7 +50,7 @@ class Worker(multiprocessing.Process):
     def run(self):
         while True:
             if not self._database:
-                self._database = database_lib.Database(self._db_path)
+                self._database = database_client.DatabaseClient(self._db_path)
 
             try: 
                 messages = socket_lib.recv_all_messages(self.client.socket)

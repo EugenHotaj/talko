@@ -8,12 +8,12 @@ from datetime import datetime
 import socket
 
 import constants
-import database_lib
+import database_client
 import socket_lib
 
 
 def main(user_id, path):
-    database = database_lib.Database(path)
+    database = database_client.DatabaseClient(path)
 
     user_name = f'user_{user_id}'
     try:

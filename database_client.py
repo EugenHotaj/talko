@@ -30,11 +30,11 @@ class Message:
     message_ts: int
 
 
-class Database:
+class DatabaseClient:
     """A client which handles communications with the database."""
 
     def __init__(self, db_path):
-        """Initializes a new Database instance.
+        """Initializes a new DatabaseClient instance.
 
         Args:
             db_path: The path to the SQLite database.
