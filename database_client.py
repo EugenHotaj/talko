@@ -61,9 +61,8 @@ class DatabaseClient:
     def get_chats(self, user_id):
         """Returns all chats the user is participating in."""
         query = """SELECT Chats.chat_id, chat_name 
-                   FROM Chats JOIN Participants
-                     ON Chats.chat_id = Participants.chat_id
-                   WHERE user_id = ?"""
+            FROM Chats JOIN Participants ON Chats.chat_id = Participants.chat_id
+            WHERE user_id = ?"""
         with self._connection:
             cursor = self._connection.execute(query, (user_id,))
         return [Chat(*row) for row in cursor.fetchall()]
@@ -71,29 +70,23 @@ class DatabaseClient:
     def get_participants(self, chat_id):
         """Returns all users participating in the chat with given chat_id."""
         query = """SELECT Users.user_id, user_name 
-                   FROM Users JOIN Participants 
-                     ON Users.user_id = Participants.user_id
-                   WHERE chat_id = ?"""
+            FROM Users JOIN Participants ON Users.user_id = Participants.user_id
+            WHERE chat_id = ?"""
         with self._connection:
             cursor = self._connection.execute(query, (chat_id,))
         return [User(*row) for row in cursor.fetchall()]
 
-    # TODO(eugenhotaj): This method issues 2 database queries. Is it possible --
-    # or even worth it -- to do this in SQL?
     def get_private_chat_id(self, user1_id, user2_id):
         """Returns the id of the private chat between the given users."""
-        chat_ids = [chat.chat_id for chat in self.get_chats(user1_id)]
-        ins = ', '.join('?' * len(chat_ids))
-        query = f'SELECT chat_id, user_id FROM Participants WHERE chat_id IN ({ins})'
+        query = f"""SELECT Participants.chat_id, user_id 
+            FROM Participants JOIN  Chats ON Participants.chat_id = Chats.chat_id
+            WHERE is_private = True AND user_id IN (?, ?)"""
         with self._connection:
-            cursor = self._connection.execute(query, chat_ids)
-        chat_to_users = collections.defaultdict(set)
+            cursor = self._connection.execute(query, (user1_id, user2_id))
+        user_to_chats = {user1_id: set(), user2_id: set()}
         for chat_id, user_id in cursor.fetchall():
-            chat_to_users[chat_id].add(user_id)
-        private_chat = [
-                k for k, v in chat_to_users.items() 
-                if user2_id in v and len(v) == 2
-        ]
+            user_to_chats[user_id].add(chat_id)
+        private_chat = list(user_to_chats[0] & user_to_chats[1])
         assert len(private_chat) <= 1
         return private_chat[0] if private_chat else None
 
@@ -102,9 +95,10 @@ class DatabaseClient:
     # cursor.lastrowid.
     def insert_chat(self, chat_name, user_ids):
         """Inserts a new chat with the given user_ids as participants."""
-        query = 'INSERT INTO Chats (chat_name) VALUES (?)'
+        query = 'INSERT INTO Chats (chat_name, is_private) VALUES (?, ?)'
+        is_private = len(user_ids) == 2
         with self._connection:
-            cursor = self._connection.execute(query, (chat_name,))
+            cursor = self._connection.execute(query, (chat_name, is_private))
 
         # Inserting the participants does not need to happen in the same
         # transaction as inserting the chat.
@@ -128,9 +122,9 @@ class DatabaseClient:
     # cursor.lastrowid.
     def insert_message(self, chat_id, user_id, message_text, message_ts):
         """Inserts a new message."""
-        query = """INSERT INTO Messages 
-                     (chat_id, user_id, message_text, message_ts)
-                   VALUES (?, ?, ?, ?)"""
+        query = """INSERT INTO 
+            Messages (chat_id, user_id, message_text, message_ts) 
+            VALUES (?, ?, ?, ?)"""
         with self._connection:
             cursor = self._connection.execute(
                     query, (chat_id, user_id, message_text, message_ts))

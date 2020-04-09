@@ -6,7 +6,8 @@ CREATE TABLE Users
 
 CREATE TABLE Chats 
   (chat_id INTEGER PRIMARY KEY AUTOINCREMENT, 
-   chat_name TEXT NOT NULL);
+   chat_name TEXT NOT NULL,
+   is_private BOOLEAN NOT NULL);
 
 CREATE TABLE Participants
   (participant_id INTEGER PRIMARY KEY AUTOINCREMENT,

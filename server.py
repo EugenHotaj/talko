@@ -14,17 +14,16 @@ import constants
 import database_client 
 import socket_lib
 
-CONNECTION_BACKLOG = 3
 # NOTE(eugenhotaj): We use processes instead of threads to get around the GIL.
 MAX_WORKERS = 10
 
 class Client:
     """A data cotainer which wraps client connections."""
     
-    def __init__(self, socket, address_info):
+    def __init__(self, socket, address):
         self.socket = socket
-        address, port = address_info
-        self.address = f'{address}:{port}'
+        host, port = address
+        self.address = f'{host}:{port}'
 
 
 class Worker(multiprocessing.Process):
@@ -103,7 +102,7 @@ def serve_forever(db_path):
     server_socket.setblocking(False)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
     server_socket.bind((constants.LOCALHOST, constants.LOCALHOST_PORT))
-    server_socket.listen(CONNECTION_BACKLOG)
+    server_socket.listen()
 
     # Holds client connections in shared memory across workers.
     client_table = multiprocessing.Manager().dict()
@@ -116,9 +115,9 @@ def serve_forever(db_path):
         if result is None:
             continue
 
-        client_socket, address_info = result
+        client_socket, address = result
         if len(workers) <MAX_WORKERS:
-            client = Client(client_socket, address_info)
+            client = Client(client_socket, address)
             worker = Worker(client, client_table, db_path)
             worker.start()
             workers.append(worker)
