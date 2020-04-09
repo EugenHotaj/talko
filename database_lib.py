@@ -2,32 +2,27 @@
 
 import collections
 from dataclasses import dataclass
+from typing import List
 import sqlite3
 
 
 @dataclass(frozen=True)
 class User:
-    """Maps to a User row in the database."""
+    """Data container for Users."""
     user_id: int
     user_name: str
 
 
 @dataclass(frozen=True)
 class Chat:
-    """Maps to a Chat row in the database."""
+    """Data container for Chats."""
     chat_id: int
-    user1_id: int
-    user2_id: int
-
-    @property
-    def user_ids(self):
-        """Returns all user_ids as a list."""
-        return [self.user1_id, self.user2_id]
+    chat_name: str
 
 
 @dataclass(frozen=True)
 class Message:
-    """Maps to a Chat row in the database."""
+    """Data container for Messages."""
     message_id: int
     chat_id: int
     user_id: int
@@ -49,71 +44,84 @@ class Database:
 
     def get_user(self, user_id):
         """Returns the user with given user_id."""
-        cursor = self._connection.execute(
-                "SELECT * FROM Users WHERE user_id=?", (user_id,))
+        query = "SELECT * FROM Users WHERE user_id=?"
+        with self._connection:
+            cursor = self._connection.execute(query, (user_id,))
         row = cursor.fetchone()
         return User(*row) if row else None
-
 
     # TODO(eugenhotaj): Should we take in a User instance here?
     def insert_user(self, user_id, user_name):
         """Inserts a new user into the Users table."""
+        query = "INSERT INTO Users (user_id, user_name) VALUES (?, ?)"
         with self._connection:
-            self._connection.execute(
-                    "INSERT INTO Users(user_id, user_name) VALUES(?, ?)",
-                    (user_id, user_name))
+            self._connection.execute(query, (user_id, user_name))
         return user_id
 
-    def list_chats(self, user_id):
+    def list_user_chats(self, user_id):
         """Returns all chats the user is participating in."""
+        query = """SELECT Chats.chat_id, chat_name 
+                   FROM Chats JOIN Participants
+                     ON Chats.chat_id = Participants.chat_id
+                   WHERE user_id=?"""
         with self._connection:
-            cursor = self._connection.execute(
-                    "SELECT * FROM Chats WHERE user1_id=? OR user2_id=?", 
-                    (user_id, user_id))
+            cursor = self._connection.execute(query, (user_id,))
         return [Chat(*row) for row in cursor.fetchall()]
 
-    def get_chat(self, chat_id):
-        """Returns the chat with given chat_id."""
+    def get_chat_users(self, chat_id):
+        """Returns all users in the chat with given chat_id."""
+        query = """SELECT Users.user_id, user_name 
+                   FROM Users JOIN Participants 
+                     ON Users.user_id = Participants.user_id
+                   WHERE chat_id=?"""
         with self._connection:
-            cursor = self._connection.execute(
-                    "SELECT * FROM Chats WHERE chat_id=?", (chat_id,))
-        row = cursor.fetchone()
-        return Chat(*row) if row else None
+            cursor = self._connection.execute(query, (chat_id,))
+        return [User(*row) for row in cursor.fetchall()]
 
-    def get_chat_id_for_user_ids(self, user1_id, user2_id):
-        """Returns the id of the chat between the given users."""
-        user_ids = tuple(sorted((user1_id, user2_id)))
+    def get_private_chat_id(self, user1_id, user2_id):
+        """Returns the id of the private chat between the given users.
+
+        N.B. This is a complex, expensive query. Use with care.
+        """
+        query = """SELECT chat_id, user_ids
+                   FROM (
+                     SELECT chat_id, group_concat(user_id) as user_ids
+                     FROM Participants
+                     GROUP BY user_id)
+                   WHERE ? IN user_ids OR ? in user_ids)"""
         with self._connection:
-            cursor = self._connection.execute(
-                    "SELECT chat_id FROM Chats WHERE user1_id=? AND user2_id=?", 
-                    user_ids)
-        row = cursor.fetchone()
-        return row[0] if row else None
+            cursor = self._connection.execute(query (user1_id, user2_id))
+        chat_ids = [
+                chat_id for chat_id, user_ids in cursor.fetchall() 
+                if len(user_ids) == 2
+        ]
+        assert len(chat_ids) <= 1
+        return chat_ids[0] if chat_ids else None
 
     # TODO(eugenhotaj): Should we take in a Chat instance here and check that
     # chat_id == None? We then return a new Chat with chat_id = 
     # cursor.lastrowid.
-    def insert_chat(self, user1_id, user2_id):
-        """Inserts a new chat between the two users.
-
-        The user_ids are sorted so that user1 is always the user with the lower
-        user_id.
-        """
-        user_ids = tuple(sorted((user1_id, user2_id)))
+    def insert_chat(self, chat_name, user_ids):
+        """Inserts a new chat with the given user_ids as participants."""
+        query = "INSERT INTO Chats (chat_name) VALUES (?)"
         with self._connection:
-            cursor = self._connection.execute(
-                    "INSERT INTO Chats(user1_id, user2_id) VALUES(?, ?)",
-                    user_ids)
-        return cursor.lastrowid
+            cursor = self._connection.execute(query, (chat_name,))
+
+        # Inserting the participants does not need to happen in the same
+        # transaction as inserting the chat.
+        chat_id = cursor.lastrowid
+        participants = [(chat_id, user_id) for user_id in user_ids]
+        query = "INSERT INTO Participants (chat_id, user_id) VALUES (?, ?)"
+        with self._connection:
+            self._connection.executemany(query, participants)
+
+        return chat_id
 
     def list_messages(self, chat_id):
-        """Returns all messages for the chat."""
+        """Returns all messages for the chat with given chat_id."""
+        query = "SELECT * FROM Messages WHERE chat_id=? ORDER_BY message_ts"
         with self._connection:
-            cursor = self._connection.execute(
-                    """SELECT * FROM Messages 
-                       WHERE chat_id=? 
-                       ORDER BY message_ts""", 
-                    (chat_id,))
+            cursor = self._connection.execute(query, (chat_id,))
         return [Message(*row) for row in cursor.fetchall()]
 
     # TODO(eugenhotaj): Should we take in a Message instance here and check that
@@ -121,10 +129,10 @@ class Database:
     # cursor.lastrowid.
     def insert_message(self, chat_id, user_id, message_text, message_ts):
         """Inserts a new message."""
+        query = """INSERT INTO Messages 
+                     (chat_id, user_id, message_text, message_ts)
+                   VALUES (?, ?, ?, ?)"""
         with self._connection:
             cursor = self._connection.execute(
-                    """INSERT INTO 
-                           Messages(chat_id, user_id, message_text, message_ts)
-                       VALUES(?, ?, ?, ?)""",
-                    (chat_id, user_id, message_text, message_ts))
+                    query, (chat_id, user_id, message_text, message_ts))
         return cursor.lastrowid
