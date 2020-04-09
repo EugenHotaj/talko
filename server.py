@@ -54,14 +54,14 @@ class Worker(multiprocessing.Process):
 
             try: 
                 messages = socket_lib.recv_all_messages(self.client.socket)
-            finally:
+            except:
                 # Remove our client from client_table if the socket disconnects.
                 if self._user_id in self._client_table:
                     del self._client_table[self._user_id]
-                break
+                raise
             # TODO(eugenhotaj): We may want to generate the timestamp per 
             # message if we need more granualarity.
-            ts = int(time.time() * MILLIS_PER_SEC)
+            message_ts = int(time.time() * constants.MILLIS_PER_SEC)
             for message in messages:
                 user_id = message['user_id']
                 if not self._user_id:
@@ -71,18 +71,20 @@ class Worker(multiprocessing.Process):
 
                 chat_id = message['chat_id']
                 message_text = message['message_text']
-                # First, insert the new message into the database.
+                # First, insert the new message into the database then send
+                # it out to all participants that are online.
                 self._database.insert_message(
-                        chat_id, user_id, message_text, ts)
-                # Then, send the message to all active receivers.
-                chat = self._database.get_chat(chat_id)
+                        chat_id, user_id, message_text, message_ts)
+                participants = self._database.get_participants(chat_id)
                 receivers = [
-                        receiver for receiver in chat.user_ids
-                        if receiver != user_id and receiver in self._client_table
+                        user for user in participants 
+                        if user.user_id != user_id and 
+                        user.user_id in self._client_table
                 ]
                 for receiver in receivers:
                     socket_lib.send_message(
-                            self._client_table[receiver].socket, message)
+                            self._client_table[receiver.user_id].socket, 
+                            message)
 
 
 def _keep_if_alive(process):
@@ -108,15 +110,16 @@ def serve_forever(db_path):
 
     workers = []
     while True:
+        workers = [worker for worker in workers if _keep_if_alive(worker)]
+
         result = socket_lib.accept(server_socket)
         if result is None:
             continue
 
         client_socket, address_info = result
-        workers = [worker for worker in workers if _keep_if_alive(worker)]
         if len(workers) <MAX_WORKERS:
             client = Client(client_socket, address_info)
-            worker = Worker(client, client_table, FLAGS.db_path)
+            worker = Worker(client, client_table, db_path)
             worker.start()
             workers.append(worker)
             print(f'Connection from {client.address} established')

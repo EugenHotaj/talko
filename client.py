@@ -27,33 +27,38 @@ def main(user_id, path):
     # some input. We could fix this, but it's not worth it.
     print(f'Welcome {user_name}!')
     while True:
-        print('Select an option:\n  1: View chats\n  2: New chat')
+        print('Select an option:\n  0: View chats\n  1: New chat')
         option = int(input('> '))
-        if option == 1:
-            chats = database.list_chats(user_id)
+        if option == 0:
+            chats = database.get_chats(user_id)
             if chats:
                 print('Select an open chat to continue messaging:')
                 for i, chat in enumerate(chats):
-                    print(f'{i+1}: {chat}')
-                chat_id = int(input('> '))
+                    print(f'{i}: {chat.chat_id}')
+                chat_id = chats[int(input('> '))].chat_id
                 break
             else:
                 print('No chats found, going back to main menu.')
                 continue
-        elif option == 2:
-            print('Insert the user_id you want to chat with.')
-            receiver_id = int(input('> '))
-            if not database.get_user(receiver_id):
-                raise Exception(f'No user found with user_id "{receiver_id}"')
-            # If a chat already exists with the user, resue the chat.
-            chat_id = database.get_chat_id_for_user_ids(user_id, receiver_id)
+        elif option == 1:
+            print('Insert the csv of users you want to chat with.')
+            receivers = [int(user_id) for user_id in input('> ').split(',')]
+            if not len(database.get_users(receivers)) == len(receivers):
+                # TODO(eugenhotaj): List out the invalid users in the exception.
+                raise Exception(f'Invalid users.')
+            # Reuse private chats if they already exist.
+            chat_id = None
+            if len(receivers) == 1:
+                receiver_id = receivers[0]
+                chat_id = database.get_private_chat_id(user_id, receiver_id)
             if chat_id is None:
-                chat_id = database.insert_chat(user_id, receiver_id)
+                user_ids = list(set(receivers + [user_id]))
+                chat_id = database.insert_chat('Chat', user_ids)
             break
         else:
             raise Exception(f'Unrecognized option "{option}"')
 
-    messages = database.list_messages(chat_id)
+    messages = database.get_messages(chat_id)
     for message in messages:
         # TODO(eugenhotaj): Use the user_name instead of user_id when displaying
         # messages. We could update Database.list_messages() to join on the 
