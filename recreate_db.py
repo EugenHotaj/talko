@@ -16,6 +16,6 @@ if __name__ == '__main__':
     if os.path.exists(FLAGS.db_path):
         os.remove(FLAGS.db_path)
     connection = sqlite3.connect(FLAGS.db_path)
-    sql = open('recreate_db.sql', 'r').read()
+    sql = open('schema.sql', 'r').read()
     with connection:
         connection.executescript(sql)
