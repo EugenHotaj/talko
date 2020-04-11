@@ -32,21 +32,25 @@ def accept(socket, block=False):
 
 
 def send_message(socket, message):
-    """Sends the message using the socket."""
-    message = message.to_json()
+    """Sends the string message using the socket."""
     message = f'{len(message):<{HEADER_BYTES}}{message}'
     message = bytes(message, 'utf-8')
     socket.send(message)
 
 
 def _recv_bytes(socket, n_bytes):
-    """Receives n_bytes from the socket."""
+    """Receives n_bytes from the socket and decodes them to utf-8 strings."""
     return socket.recv(n_bytes).decode('utf-8')
 
 
 def recv_message(socket): 
-    """Receives a full message from the socket."""
-    message_size = int(_recv_bytes(socket, HEADER_BYTES))
+    """Receives a full string message from the socket."""
+    try:
+        message_size = int(_recv_bytes(socket, HEADER_BYTES))
+    except IOError as err:
+        if err.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+            return
+
     received_size = 0
     message = []
     while received_size < message_size:
@@ -58,12 +62,11 @@ def recv_message(socket):
 
 
 def recv_all_messages(socket):
-    """Receives all unreceived messages from the socket."""
+    """Receives all pending messages from the socket."""
     messages = []
     while True:
-        try:
-            messages.append(recv_message(socket))
-        except IOError as err:
-            if err.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
-                break
+        message = recv_message(socket)
+        if not message:
+            break
+        messages.append(message)
     return messages

@@ -5,6 +5,11 @@ from dataclasses import dataclass
 from typing import List
 import sqlite3
 
+# TODO(eugenhotaj): We should decouple the storage objects from the wire 
+# protocol so we can flexibly change the store implementation without affecting
+# the clients.
+import protocol
+
 
 class DatabaseClient:
     """A client which handles communications with the database."""
@@ -19,12 +24,12 @@ class DatabaseClient:
         self._connection = sqlite3.connect(db_path)
 
     def get_users(self, user_ids):
-        """Returns the user with the given user_ids."""
+        """Returns the users with the given user_ids."""
         ins = ', '.join('?' * len(user_ids))
         query = f'SELECT * FROM Users WHERE user_id IN ({ins})'
         with self._connection:
             cursor = self._connection.execute(query, user_ids)
-        return [User(*row) for row in cursor.fetchall()]
+        return [protocol.User(*row) for row in cursor.fetchall()]
 
     # TODO(eugenhotaj): Should we take in a User instance here?
     def insert_user(self, user_id, user_name):
@@ -41,7 +46,7 @@ class DatabaseClient:
             WHERE user_id = ?"""
         with self._connection:
             cursor = self._connection.execute(query, (user_id,))
-        return [Chat(*row) for row in cursor.fetchall()]
+        return [protocol.Chat(*row) for row in cursor.fetchall()]
 
     def get_participants(self, chat_id):
         """Returns all users participating in the chat with given chat_id."""
@@ -50,7 +55,7 @@ class DatabaseClient:
             WHERE chat_id = ?"""
         with self._connection:
             cursor = self._connection.execute(query, (chat_id,))
-        return [User(*row) for row in cursor.fetchall()]
+        return [protocol.User(*row) for row in cursor.fetchall()]
 
     def get_private_chat_id(self, user1_id, user2_id):
         """Returns the id of the private chat between the given users."""
@@ -91,7 +96,7 @@ class DatabaseClient:
         query = 'SELECT * FROM Messages WHERE chat_id = ? ORDER BY message_ts'
         with self._connection:
             cursor = self._connection.execute(query, (chat_id,))
-        return [Message(*row) for row in cursor.fetchall()]
+        return [protocol.Message(*row) for row in cursor.fetchall()]
 
     # TODO(eugenhotaj): Should we take in a Message instance here and check that
     # message_id == None? We then return a new Message with message_id = 

@@ -6,12 +6,14 @@ Currently, a separate process is created for each client.
 """
 
 import argparse
+import json
 import multiprocessing
 import socket
 import time
 
 import constants
 import database_client 
+import protocol
 import socket_lib
 
 # NOTE(eugenhotaj): We use processes instead of threads to get around the GIL.
@@ -25,24 +27,22 @@ class Server:
     overridden by the subclasses.
     """
 
-    def __init__(self, host, port, db_path, max_workers=MAX_WORKERS):
+    def __init__(self, address, is_blocking=True, max_workers=None):
         """Initializes a new Server instance.
         
         Args:
-            host: The host address from which to serve requests.
-            port: The port from which to serve requests.
-            db_path: A path to the SQLite database.
+            address: The (host, port) tuple address to bind this server to.
+            is_blocking: Whether to use a blocking socket.
             max_workers: The total number of workers to use for serving 
                 requests. Requests which exceed the number of available workers
                 are dropped.
         """
-        self._address = (host, port)
-        self._db_path = db_path
-        self._max_workers = max_workers 
+        self._address = address
+        self._max_workers = max_workers or MAX_WORKERS
 
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
-        self._socket.setblocking(False)
+        self._socket.setblocking(is_blocking)
 
     def handle_request(self, client_socket):
         """Handles a request. Must be overridden by the subclass."""
@@ -90,44 +90,55 @@ class Server:
 class BroadcastServer(Server):
     """A Server which handles streaming chat conversations between users."""
 
-    def __init__(self, host, port, db_path, max_workers=MAX_WORKERS):
-        super().__init__(host, port, db_path, max_workers)
+    def __init__(self, address, dataserver_address, max_workers=None):
+        """Initializes a new BroadcastServer instance.
+
+        Args: 
+            address: See the base class.
+            dataserver_address: The address of the DataServer which handles 
+                reading and writing chat data.
+            max_workers: See the base class.
+        """
+        super().__init__(address, is_blocking=False, max_workers=max_workers)
+        self._dataserver_address = dataserver_address
         self._socket_table = multiprocessing.Manager().dict()
 
     def handle_request(self, client_socket):
-        """Handles requests from the client_socket.
-
-        The server receives real-time conversation messages from the 
-        client_socket which it first stores in the SQLite database then 
-        broadcasts to the intended recipiants.
-        """
+        """Handles requests from the client_socket."""
         user_id = None
-        db_client = database_client.DatabaseClient(self._db_path)
+        # TODO(eugenhotaj): Completley factor out db interactions into the 
+        # DataServer.
+        db_client = database_client.DatabaseClient(FLAGS.db_path)
         while True:
             try: 
-                messages = socket_lib.recv_all_messages(client_socket)
+                raw_requests = socket_lib.recv_all_messages(client_socket)
             except:
                 # Remove our socket from the socket_table if disconnected.
                 if user_id in self._socket_table:
                     del self._socket_table[user_id]
                 raise
 
+            # Parse raw requests into request objects.
+            requests = []
+            for request in raw_requests:
+                request = json.loads(request)['params']
+                request = protocol.BroadcastRequest.from_json(request)
+                requests.append(request)
+
             # TODO(eugenhotaj): We may want to generate the timestamp per 
             # message if we need more granualarity.
             message_ts = int(time.time() * constants.MILLIS_PER_SEC)
-            for message in messages:
+            for request in requests:
                 if not user_id:
-                    user_id = message['user_id']
+                    user_id = request.user_id
                     self._socket_table[user_id] = client_socket
-                assert user_id == message['user_id']
+                assert user_id == request.user_id
 
-                chat_id = message['chat_id']
-                message_text = message['message_text']
-                # First, insert the new message into the database then send
+                # First, insert the new message into the database then broadcast
                 # it out to all participants that are online.
-                db_client.insert_message(
-                        chat_id, user_id, message_text, message_ts)
-                participants = db_client.get_participants(chat_id)
+                db_client.insert_message(request.chat_id, user_id, 
+                                         request.message_text, message_ts)
+                participants = db_client.get_participants(request.chat_id)
                 receivers = [
                         user for user in participants 
                         if user.user_id != user_id and 
@@ -135,7 +146,70 @@ class BroadcastServer(Server):
                 ]
                 for receiver in receivers:
                     socket_lib.send_message(
-                            self._socket_table[receiver.user_id], message)
+                            self._socket_table[receiver.user_id], 
+                            request.to_json())
+
+
+class DataServer(Server):
+    """A Server which handles reading and writing chat data.
+
+    Unlike the BroadcastServer, the DataServer operates via a request/response
+    protocol. This means that it handles exactly one request per client 
+    connection and responds back with exactly one response, after which the 
+    connection to the client socket is terminated.
+
+    If the client sends multiple requests on the same socket, only the first
+    request is processed and subsequent requests are ignored.
+    """
+
+    def __init__(self, address, db_path, max_workers=None):
+        """Initializes a new DataServer instance.
+
+        Args:
+            address: See the base class.
+            db_path: The path to the SQLite chat database.
+        """
+        super().__init__(address, is_blocking=False, max_workers=max_workers)
+        self._db_path = db_path
+
+    def handle_request(self, client_socket):
+        """Handles requests from the client_socket."""
+        db_client = database_client.DatabaseClient(self._db_path)
+        request = socket_lib.recv_message(client_socket)
+        request = json.loads(request)
+        method, params, id_ = request['method'], request['params'], request['id']
+
+        if method == 'GetUsers':
+            request = protocol.GetUsersRequest.from_json(params)
+            user_ids = db_client.get_users(request.user_ids)
+            response = protocol.GetUsersResponse(user_ids)
+        elif method == 'InsertUser':
+            request = protocol.InsertUserRequest.from_json(params)
+            user_id = db_client.insert_user(request.user_name)
+            response = protocol.InsertUserResponse(user_id)
+        elif method == 'GetChats':
+            request = protocol.GetChatsRequest.from_json(params)
+            chats = db_client.get_chats(request.user_id)
+            response = protocol.GetChatsResponse(chats)
+        elif method == 'InsertChat':
+            request = protocol.InsertChatRequest.from_json(params)
+            user_ids = request.user_ids
+            chat_id = None
+            if len(user_ids) == 2:
+                chat_id = db_client.get_private_chat_id(*user_ids)
+            if not chat_id:
+                chat_id = db_client.insert_chat(request.chat_name, user_ids)
+            response = protocol.InsertChatResponse(chat_id)
+        elif method == 'GetMessages':
+            request = protocol.GetMessagesRequest.from_json(params)
+            messages = db_client.get_messages(request.chat_id)
+            response = protocol.GetMessagesResponse(messages)
+        else:
+            # TODO(eugenhotaj): Return back a malformed request response.
+            raise NotImplementedError()
+
+        response = { 'result': response.to_json(), 'id': id_}
+        socket_lib.send_message(client_socket, json.dumps(response))
 
 
 if __name__ == '__main__':
@@ -145,6 +219,17 @@ if __name__ == '__main__':
                         help='Path to the SQLite chat database')
     FLAGS = parser.parse_args()
 
-    broadcast_server = StreamingServer(
-            constants.LOCALHOST, constants.LOCALHOST_PORT,  FLAGS.db_path)
-    broadcast_server.serve_forever()
+    db_path = FLAGS.db_path
+    broadcastserver_address = (constants.LOCALHOST, constants.BROADCAST_PORT)
+    dataserver_address = (constants.LOCALHOST, constants.DATA_PORT)
+ 
+    def start_broadcast_server():
+        server = BroadcastServer(broadcastserver_address, dataserver_address)
+        server.serve_forever()
+
+    def start_data_server():
+        server = DataServer(dataserver_address, db_path)
+        server.serve_forever()
+
+    multiprocessing.Process(target=start_data_server).start()
+    multiprocessing.Process(target=start_broadcast_server).start()

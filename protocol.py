@@ -53,23 +53,22 @@ class BroadcastRequest(_Serializable):
     message_text: str
 
 
+# The classes below define the request/response based communication protocol 
+# between clients and servers.
 @dataclasses.dataclass(frozen=True)
 class User(_Serializable):
-    """Protocol definition for Users."""
     user_id: int
     user_name: str
 
 
 @dataclasses.dataclass(frozen=True)
 class Chat(_Serializable):
-    """Protocol definition for Chats."""
     chat_id: int
     chat_name: str
 
 
 @dataclasses.dataclass(frozen=True)
 class Message(_Serializable):
-    """Protocol definition for Messages."""
     message_id: int
     chat_id: int
     user_id: int
@@ -77,8 +76,6 @@ class Message(_Serializable):
     message_ts: int
 
 
-# The classes below define the request/response based communication protocol 
-# between clients and servers.
 @dataclasses.dataclass(frozen=True)
 class GetUsersRequest(_Serializable):
     user_ids: List[int]
