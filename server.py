@@ -88,7 +88,7 @@ class Server:
 
 
 class BroadcastServer(Server):
-    """A Server which handles broadcasting chat conversations between users."""
+    """A Server which handles streaming chat conversations between users."""
 
     def __init__(self, host, port, db_path, max_workers=MAX_WORKERS):
         super().__init__(host, port, db_path, max_workers)
@@ -145,6 +145,6 @@ if __name__ == '__main__':
                         help='Path to the SQLite chat database')
     FLAGS = parser.parse_args()
 
-    broadcast_server = BroadcastServer(
+    broadcast_server = StreamingServer(
             constants.LOCALHOST, constants.LOCALHOST_PORT,  FLAGS.db_path)
     broadcast_server.serve_forever()

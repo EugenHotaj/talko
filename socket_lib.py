@@ -1,24 +1,14 @@
 """Library which handles sending and receiving messages via sockets.
 
-The server and clients communicate with each other via string messages. Each 
-message contains a 10 byte header followed by a payload. The header is an 
-integer indicating the size of the payload in bytes. The payload is a JSON 
-encoded string. Messages are encoded to bytes via utf-8 encoding before being
-transmitted over the wire.
-
-The JSON messages contain the following fields. Note that user_id and user_name
-correspond to the user that sent the message.
-    message = {
-        chat_id: 0123456789
-        user_id: 9876543210
-        user_name: 'TheOne'
-        message_text: 'Hello, world!'
-    }
+Messages are utf-8 encoded binary strings. Each message consists of a 10 byte
+header followed by a payload. The header is an integer indicating the size of 
+the payload in bytes. The payload consists of one, and only one, pickled Python
+object defined in protocol.py. Because we control.
 """
 
 import collections
+import dataclasses
 import errno
-import json
 
 HEADER_BYTES = 10
 PACKET_BYTES = 4096
@@ -43,7 +33,7 @@ def accept(socket, block=False):
 
 def send_message(socket, message):
     """Sends the message using the socket."""
-    message = json.dumps(message)
+    message = message.to_json()
     message = f'{len(message):<{HEADER_BYTES}}{message}'
     message = bytes(message, 'utf-8')
     socket.send(message)
@@ -64,7 +54,7 @@ def recv_message(socket):
         message.append(_recv_bytes(socket, n_bytes))
         received_size += n_bytes
     message = ''.join(message)
-    return json.loads(message)
+    return message
 
 
 def recv_all_messages(socket):

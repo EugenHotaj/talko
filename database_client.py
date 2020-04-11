@@ -6,30 +6,6 @@ from typing import List
 import sqlite3
 
 
-@dataclass(frozen=True)
-class User:
-    """Data container for Users."""
-    user_id: int
-    user_name: str
-
-
-@dataclass(frozen=True)
-class Chat:
-    """Data container for Chats."""
-    chat_id: int
-    chat_name: str
-
-
-@dataclass(frozen=True)
-class Message:
-    """Data container for Messages."""
-    message_id: int
-    chat_id: int
-    user_id: int
-    message_text: str
-    message_ts: int
-
-
 class DatabaseClient:
     """A client which handles communications with the database."""
 
