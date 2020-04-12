@@ -1,6 +1,19 @@
-# grima
-A multi-threaded (i.e. multi-processed) client-server chat backend in Python. 
+# Grima
 
-A primary goal of this project is to reinvent any wheel where it would be interesting to do so.
+*A fully functioning chat application built entierly from scratch (no HTTP, no 
+frameworks)*.
 
-The name 'grima' is an allusion to [Grima Wormtounge](https://en.wikipedia.org/wiki/Gr%C3%ADma_Wormtongue). 
+At a high level, the application breaks down into a client-multiserver 
+architecture. The client communicates with two servers via 
+[JSON-RCP](https://www.jsonrpc.org/specification), a BroadcastServer and a 
+DataServer. The DataServer handles reading and writing chat data from the 
+database and operates in a traditional message protocol (i.e. request and 
+response). The BroadcastServer handles fanning out new conversation messasges 
+to all participants.
+
+A primary goal of this project is to reinvent any wheel where it would be 
+interesting to do so.
+
+The name 'Grima' is an allusion to 
+[Grima Wormtounge](https://en.wikipedia.org/wiki/Gr%C3%ADma_Wormtongue). 
+
