@@ -43,18 +43,22 @@ class _Serializable:
         return cls(**kwargs)
                     
 
+# The classes below define the streaming conversation message protocol for the
+# BroadcastServer.
+@dataclasses.dataclass(frozen=True)
+class InitiateChatRequest(_Serializable):
+    user_id: int
+
 
 @dataclasses.dataclass(frozen=True)
 class BroadcastRequest(_Serializable):
-    """Request used for real time conversation message streaming."""
     chat_id: int
     user_id: int
     user_name: str
     message_text: str
 
 
-# The classes below define the request/response based communication protocol 
-# between clients and servers.
+# The classes below define the request/response protocol for the DataServer.
 @dataclasses.dataclass(frozen=True)
 class User(_Serializable):
     user_id: int

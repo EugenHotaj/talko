@@ -100,6 +100,15 @@ class BroadcastServer(Server):
             max_workers: See the base class.
         """
         super().__init__(address, is_blocking=False, max_workers=max_workers)
+        # TODO(eugenhotaj): Now that I think about it, it probably makes a lot
+        # more sense to have the DataServer send requests to the Broadcast
+        # server instead. As it stands, a user could theoretically insert a 
+        # new chat message by sending an InsertMessage request to the DataServer
+        # and circumvent the BroadcastServer entierly, meaning other users in 
+        # the conversation would not see the message until they reload the page.
+        # We should have *only* one way to insert chat messages, via the 
+        # DataServer. Once the DataServer inserts the message into the db, it
+        # can then pass it on to the Broadcast server to Broadcast the message.
         self._dataserver_address = dataserver_address
         self._socket_table = multiprocessing.Manager().dict()
 
@@ -138,6 +147,10 @@ class BroadcastServer(Server):
             # message if we need more granualarity.
             message_ts = int(time.time() * constants.MILLIS_PER_SEC)
             for request in requests:
+                # TODO(eugenhotaj): This is actually a terrible way to get the
+                # user_id as it means that connected users will not be broadcast
+                # any new messages until they send a message first, asince we 
+                # will not have their socket in the socket_table.
                 if not user_id:
                     user_id = request.user_id
                     self._socket_table[user_id] = client_socket
