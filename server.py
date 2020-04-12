@@ -17,7 +17,7 @@ import protocol
 import socket_lib
 
 # NOTE(eugenhotaj): We use processes instead of threads to get around the GIL.
-MAX_WORKERS = 10
+MAX_WORKERS = 50
 
 
 class Server:
@@ -103,12 +103,21 @@ class BroadcastServer(Server):
         self._dataserver_address = dataserver_address
         self._socket_table = multiprocessing.Manager().dict()
 
+    # TODO(eugenhotaj): Move this method to a shared library which can be used
+    # by the client as well.
+    def _send_request(self, method, params):
+        """Sends a request and waits for a response from the server."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(self._dataserver_address)
+        request = {'method': method, 'params': params.to_json(), 'id': 0}
+        socket_lib.send_message(sock, json.dumps(request))
+        response = socket_lib.recv_message(sock)
+        sock.close()
+        return json.loads(response)['result']
+
     def handle_request(self, client_socket):
         """Handles requests from the client_socket."""
         user_id = None
-        # TODO(eugenhotaj): Completley factor out db interactions into the 
-        # DataServer.
-        db_client = database_client.DatabaseClient(FLAGS.db_path)
         while True:
             try: 
                 raw_requests = socket_lib.recv_all_messages(client_socket)
@@ -136,18 +145,19 @@ class BroadcastServer(Server):
 
                 # First, insert the new message into the database then broadcast
                 # it out to all participants that are online.
-                db_client.insert_message(request.chat_id, user_id, 
-                                         request.message_text, message_ts)
-                participants = db_client.get_participants(request.chat_id)
-                receivers = [
-                        user for user in participants 
-                        if user.user_id != user_id and 
-                        user.user_id in self._socket_table
-                ]
-                for receiver in receivers:
-                    socket_lib.send_message(
-                            self._socket_table[receiver.user_id], 
-                            request.to_json())
+                req = protocol.InsertMessageRequest(
+                        request.chat_id, user_id, request.message_text, 
+                        message_ts)
+                self._send_request('InsertMessage', req)
+                req = protocol.GetParticipantsRequest(request.chat_id)
+                resp = self._send_request('GetParticipants', req)
+                resp = protocol.GetParticipantsResponse(resp)
+                for user in resp.users:
+                    if (user.user_id != user_id and
+                        user.user_id in self._socket_table):
+                        socket_lib.send_message(
+                                self._socket_table[receiver.user_id], 
+                                request.to_json())
 
 
 class DataServer(Server):
@@ -179,11 +189,7 @@ class DataServer(Server):
         request = json.loads(request)
         method, params, id_ = request['method'], request['params'], request['id']
 
-        if method == 'GetUsers':
-            request = protocol.GetUsersRequest.from_json(params)
-            user_ids = db_client.get_users(request.user_ids)
-            response = protocol.GetUsersResponse(user_ids)
-        elif method == 'InsertUser':
+        if method == 'InsertUser':
             request = protocol.InsertUserRequest.from_json(params)
             user_id = db_client.insert_user(request.user_name)
             response = protocol.InsertUserResponse(user_id)
@@ -200,10 +206,22 @@ class DataServer(Server):
             if not chat_id:
                 chat_id = db_client.insert_chat(request.chat_name, user_ids)
             response = protocol.InsertChatResponse(chat_id)
+        elif method == 'GetParticipants':
+            request = protocol.GetParticipantsRequest.from_json(params)
+            users = db_client.get_participants(request.chat_id)
+            response = protocol.GetParticipantsResponse(users)
         elif method == 'GetMessages':
             request = protocol.GetMessagesRequest.from_json(params)
             messages = db_client.get_messages(request.chat_id)
             response = protocol.GetMessagesResponse(messages)
+        elif method == 'InsertMessage':
+            request = protocol.InsertMessageRequest.from_json(params)
+            message_id = db_client.insert_message(
+                    request.chat_id, 
+                    request.user_id, 
+                    request.message_text, 
+                    request.message_timestamp)
+            response = protocol.InsertMessageResponse(message_id)
         else:
             # TODO(eugenhotaj): Return back a malformed request response.
             raise NotImplementedError()
