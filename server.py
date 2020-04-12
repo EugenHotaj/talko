@@ -21,40 +21,52 @@ MAX_WORKERS = 50
 
 
 class Server:
-    """A Server which can handle concurrent requests via process.
+    """A Server which can handle concurrent requests via processes.
 
     Requests are processed via the handle_request() method which must be 
     overridden by the subclasses.
     """
 
-    def __init__(self, address, is_blocking=True, max_workers=None):
+    def __init__(self, name, address, max_workers=None):
         """Initializes a new Server instance.
         
         Args:
+            name: The name of the server.
             address: The (host, port) tuple address to bind this server to.
-            is_blocking: Whether to use a blocking socket.
             max_workers: The total number of workers to use for serving 
                 requests. Requests which exceed the number of available workers
                 are dropped.
         """
+        self._name = name
         self._address = address
         self._max_workers = max_workers or MAX_WORKERS
 
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
-        self._socket.setblocking(is_blocking)
 
     def handle_request(self, client_socket):
-        """Handles a request. Must be overridden by the subclass."""
+        """Handles a request. 
+
+        This method must be implemented by the subclasses.
+        
+        Args:
+            client_socket: The socket of a newly connected client.
+        Returns:
+            Whether to keep the client_socket alive (True) or close it (False).
+        """
         raise NotImplementedError()
 
     def _handle_request(self, client_socket, host, port):
-        print(f'Connection from {host}:{port} established')
+        print(f'{self._name}: Connection from {host}:{port} established')
         try:
-            self.handle_request(client_socket)
-        finally:
+            keep_alive = self.handle_request(client_socket)
+            if not keep_alive:
+                client_socket.close()
+                print(f'{self._name}: Connection from {host}:{port} closed')
+        except Exception:
             client_socket.close()
-            print(f'Connection from {host}:{port} closed')
+            print(f'{self._name}: Connection from {host}:{port} interrupted')
+            raise
 
     def _keep_if_alive(self, worker):
         is_alive = worker.is_alive()
@@ -70,7 +82,7 @@ class Server:
         workers = []
         while True:
             workers = [w for w in workers if self._keep_if_alive(w)]
-            result = socket_lib.accept(self._socket)
+            result = self._socket.accept()
             if result:
                 client_socket, (host, port) = result
                 if len(workers) < self._max_workers:
@@ -84,97 +96,65 @@ class Server:
                     client_socket.shutdown(socket.SHUT_RDWR)
                     client_socket.close()
                     # TODO(eugenhotaj): Start logging instead of using print.
-                    print(f'WARNING: Connection from {host}:{port} shed')
+                    print(f'{self._name}: [WARNING] Connection from {host}:{port} shed')
 
 
 class BroadcastServer(Server):
-    """A Server which handles streaming chat conversations between users."""
+    """A Server which handles streaming new conversations messages to users."""
 
-    def __init__(self, address, dataserver_address, max_workers=None):
+    def __init__(self, address, max_workers=None):
         """Initializes a new BroadcastServer instance.
 
         Args: 
             address: See the base class.
-            dataserver_address: The address of the DataServer which handles 
-                reading and writing chat data.
             max_workers: See the base class.
         """
-        super().__init__(address, is_blocking=False, max_workers=max_workers)
-        # TODO(eugenhotaj): Now that I think about it, it probably makes a lot
-        # more sense to have the DataServer send requests to the Broadcast
-        # server instead. As it stands, a user could theoretically insert a 
-        # new chat message by sending an InsertMessage request to the DataServer
-        # and circumvent the BroadcastServer entierly, meaning other users in 
-        # the conversation would not see the message until they reload the page.
-        # We should have *only* one way to insert chat messages, via the 
-        # DataServer. Once the DataServer inserts the message into the db, it
-        # can then pass it on to the Broadcast server to Broadcast the message.
-        self._dataserver_address = dataserver_address
+        super().__init__('BroadcastServer', address, max_workers=max_workers)
         self._socket_table = multiprocessing.Manager().dict()
 
-    # TODO(eugenhotaj): Move this method to a shared library which can be used
-    # by the client as well.
-    def _send_request(self, method, params):
-        """Sends a request and waits for a response from the server."""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(self._dataserver_address)
-        request = {'method': method, 'params': params.to_json(), 'id': 0}
-        socket_lib.send_message(sock, json.dumps(request))
-        response = socket_lib.recv_message(sock)
-        sock.close()
-        return json.loads(response)['result']
-
     def handle_request(self, client_socket):
-        """Handles requests from the client_socket."""
-        user_id = None
-        while True:
-            try: 
-                raw_requests = socket_lib.recv_all_messages(client_socket)
-            except:
-                # Remove our socket from the socket_table if disconnected.
-                if user_id in self._socket_table:
-                    del self._socket_table[user_id]
-                raise
+        """See the base class."""
+        request = socket_lib.recv_message(client_socket)
+        request = json.loads(request)
+        method, params, id_ = request['method'], request['params'], request['id']
 
-            # Parse raw requests into request objects.
-            requests = []
-            for request in raw_requests:
-                request = json.loads(request)['params']
-                request = protocol.BroadcastRequest.from_json(request)
-                requests.append(request)
+        keep_alive = False
+        if method == 'OpenStreamRequest':
+            request = protocol.OpenStreamRequest.from_json(params)
+            self._socket_table[request.user_id] = client_socket
+            response = protocol.OpenStreamResponse()
+            keep_alive = True
+        elif method == 'CloseStreamRequest':
+            request = protocol.OpenStreamRequest.from_json(request)
+            table_socket = self._socket_table[request.user_id]
+            del self._socket_table[request.user_id]
+            # If the client_socket is the same as the socket in the 
+            # socket_table, defer closing it until we have send back a
+            # response.
+            if table_socket != client_socket:
+                table_socket.close()
+            response = protocol.CloseStreamResponse()
+        elif method == 'BroadcastRequest':
+            request = protocol.BroadcastRequest.from_json(params)
+            for receiver_id in request.receiver_ids:
+                if receiver_id in self._socket_table:
+                    # TODO(eugenhoatj): Sending the BroadcastRequest to the 
+                    # client doesn't really make sense.
+                    response = {'jsonrpc': '2.0', 'result': request.to_json()}
+                    socket_lib.send_message(self._socket_table[receiver_id], 
+                                            json.dumps(response))
+            response = protocol.BroadcastResponse()
+        else:
+            # TODO(eugenhotaj): Return back a malformed request response.
+            raise NotImplementedError()
 
-            # TODO(eugenhotaj): We may want to generate the timestamp per 
-            # message if we need more granualarity.
-            message_ts = int(time.time() * constants.MILLIS_PER_SEC)
-            for request in requests:
-                # TODO(eugenhotaj): This is actually a terrible way to get the
-                # user_id as it means that connected users will not be broadcast
-                # any new messages until they send a message first, asince we 
-                # will not have their socket in the socket_table.
-                if not user_id:
-                    user_id = request.user_id
-                    self._socket_table[user_id] = client_socket
-                assert user_id == request.user_id
-
-                # First, insert the new message into the database then broadcast
-                # it out to all participants that are online.
-                req = protocol.InsertMessageRequest(
-                        request.chat_id, user_id, request.message_text, 
-                        message_ts)
-                self._send_request('InsertMessage', req)
-                req = protocol.GetParticipantsRequest(request.chat_id)
-                resp = self._send_request('GetParticipants', req)
-                resp = protocol.GetParticipantsResponse(resp)
-                for user in resp.users:
-                    if (user.user_id != user_id and
-                        user.user_id in self._socket_table):
-                        socket_lib.send_message(
-                                self._socket_table[receiver.user_id], 
-                                request.to_json())
-
+        response = {'result': response.to_json(), 'id': id_}
+        socket_lib.send_message(client_socket, json.dumps(response))
+        return keep_alive
+ 
 
 class DataServer(Server):
-    """A Server which handles reading and writing chat data.
+    """A Server which handles reading and writing conversation data.
 
     Unlike the BroadcastServer, the DataServer operates via a request/response
     protocol. This means that it handles exactly one request per client 
@@ -185,18 +165,21 @@ class DataServer(Server):
     request is processed and subsequent requests are ignored.
     """
 
-    def __init__(self, address, db_path, max_workers=None):
+    def __init__(self, address, broadcast_address, db_path, max_workers=None):
         """Initializes a new DataServer instance.
 
         Args:
             address: See the base class.
+            broadcast_address: The (host, port) address of the BroadcastServer
+                which will handle broadcasting new messages to online users.
             db_path: The path to the SQLite chat database.
         """
-        super().__init__(address, is_blocking=False, max_workers=max_workers)
+        super().__init__('DataServer', address, max_workers=max_workers)
+        self._broadcast_address = broadcast_address
         self._db_path = db_path
 
     def handle_request(self, client_socket):
-        """Handles requests from the client_socket."""
+        """See the base class."""
         db_client = database_client.DatabaseClient(self._db_path)
         request = socket_lib.recv_message(client_socket)
         request = json.loads(request)
@@ -219,27 +202,38 @@ class DataServer(Server):
             if not chat_id:
                 chat_id = db_client.insert_chat(request.chat_name, user_ids)
             response = protocol.InsertChatResponse(chat_id)
-        elif method == 'GetParticipants':
-            request = protocol.GetParticipantsRequest.from_json(params)
-            users = db_client.get_participants(request.chat_id)
-            response = protocol.GetParticipantsResponse(users)
         elif method == 'GetMessages':
             request = protocol.GetMessagesRequest.from_json(params)
             messages = db_client.get_messages(request.chat_id)
             response = protocol.GetMessagesResponse(messages)
         elif method == 'InsertMessage':
             request = protocol.InsertMessageRequest.from_json(params)
+            message_ts = int(time.time() * constants.MILLIS_PER_SEC)
             message_id = db_client.insert_message(
                     request.chat_id, 
                     request.user_id, 
                     request.message_text, 
-                    request.message_timestamp)
+                    message_ts)
+            receivers = db_client.get_participants(request.chat_id)
+            receiver_ids = [
+                    receiver.user_id for receiver in receivers 
+                    if receiver.user_id != request.user_id
+            ]
+            request = protocol.BroadcastRequest(
+                    request.chat_id, 
+                    request.user_id, 
+                    request.message_text,
+                    receiver_ids)
+            socket_lib.send_request(
+                    'BroadcastRequest', 
+                    request.to_json(), 
+                    address=self._broadcast_address)
             response = protocol.InsertMessageResponse(message_id)
         else:
             # TODO(eugenhotaj): Return back a malformed request response.
             raise NotImplementedError()
 
-        response = { 'result': response.to_json(), 'id': id_}
+        response = {'result': response.to_json(), 'id': id_}
         socket_lib.send_message(client_socket, json.dumps(response))
 
 
@@ -255,11 +249,11 @@ if __name__ == '__main__':
     dataserver_address = (constants.LOCALHOST, constants.DATA_PORT)
  
     def start_broadcast_server():
-        server = BroadcastServer(broadcastserver_address, dataserver_address)
+        server = BroadcastServer(broadcastserver_address)
         server.serve_forever()
 
     def start_data_server():
-        server = DataServer(dataserver_address, db_path)
+        server = DataServer(dataserver_address, broadcastserver_address, db_path)
         server.serve_forever()
 
     multiprocessing.Process(target=start_data_server).start()

@@ -4,14 +4,12 @@ Two server types are supported:
     1. BroadcastServer
     2. DataServer
 
-The BroadcastServer broadcasts conversation messages between users in real time
-via a streaming protocol. It communicates with clients by sending and receiving
-BroadcastRequests only. Neither the client nor the server send back a response
-for these requests.
+The BroadcastServer streams new conversation messages to connected users in 
+real time. Users can only connect or disconnect to the server and listen for
+new messages.
 
 The DataServer reads and writes data into the database. It communicates with
-clients via standard request/response based protocol. The clients send the 
-server *Requests and the server always responds back with *Responses.
+clients via standard request/response based protocol.
 """
 
 import dataclasses
@@ -46,16 +44,36 @@ class _Serializable:
 # The classes below define the streaming conversation message protocol for the
 # BroadcastServer.
 @dataclasses.dataclass(frozen=True)
-class InitiateChatRequest(_Serializable):
+class OpenStreamRequest(_Serializable):
     user_id: int
+
+
+@dataclasses.dataclass(frozen=True)
+class OpenStreamResponse(_Serializable):
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class CloseStreamRequest(_Serializable):
+    user_id: int
+
+
+@dataclasses.dataclass(frozen=True)
+class CloseStreamResponse(_Serializable):
+    pass
 
 
 @dataclasses.dataclass(frozen=True)
 class BroadcastRequest(_Serializable):
     chat_id: int
-    user_id: int
-    user_name: str
+    sender_id: int
     message_text: str
+    receiver_ids: List[int]
+
+
+@dataclasses.dataclass(frozen=True)
+class BroadcastResponse(_Serializable):
+    pass
 
 
 # The classes below define the request/response protocol for the DataServer.
@@ -112,16 +130,6 @@ class InsertChatResponse(_Serializable):
 
 
 @dataclasses.dataclass(frozen=True)
-class GetParticipantsRequest(_Serializable):
-    chat_id: int
-
-
-@dataclasses.dataclass(frozen=True)
-class GetParticipantsResponse(_Serializable):
-    users: List[User]
-
-
-@dataclasses.dataclass(frozen=True)
 class GetMessagesRequest(_Serializable):
     chat_id: int
 
@@ -136,7 +144,6 @@ class InsertMessageRequest(_Serializable):
     chat_id: int
     user_id: int
     message_text: str
-    message_timestamp: int
 
 
 @dataclasses.dataclass(frozen=True)

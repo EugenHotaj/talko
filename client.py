@@ -7,89 +7,93 @@ See the 'protocol' module for what methods the servers support.
 import argparse
 from datetime import datetime
 import json
+import multiprocessing
 import socket
 
 import constants
 import socket_lib
 
 
-def _send_request(method, params):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((constants.LOCALHOST, constants.DATA_PORT))
-    request = {'method': method, 'params': params, 'id': 0}
-    socket_lib.send_message(sock, json.dumps(request))
-    response = socket_lib.recv_message(sock)
-    sock.close()
-    return json.loads(response)['result']
+def get_input(expected_type=str):
+    try:
+        return expected_type(input('> '))
+    except EOFError:
+        pass
+
+
+def chat_loop(chat_id, user_id, address):
+    response = socket_lib.send_request(
+            'GetMessages', {'chat_id': chat_id}, address=address)
+    messages = response['messages']
+    for message in messages:
+        # TODO(eugenhotaj): Display the user_name instead of user_id.
+        date_and_time = datetime.fromtimestamp(
+               int(message['message_ts'] / constants.MILLIS_PER_SEC))
+        sender_id, message_text = message['user_id'], message['message_text']
+        print(f'{sender_id} @ {date_and_time}: {message_text}')
+
+    while True:
+        message_text = get_input(expected_type=str)
+        if message_text is None:
+            break
+        message = {
+                'chat_id': chat_id,
+                'user_id': user_id,
+                'message_text': message_text
+        }
+        socket_lib.send_request('InsertMessage', message, address=address)
 
 
 def main(user_id):
-    # "User interface" for the terminal version of the chat. The terminal
-    # blocks on input so we won't actually see any messages until we receive
-    # some input. We could fix this, but it's not worth it.
+    data_address = (constants.LOCALHOST, constants.DATA_PORT)
+    broadcast_address = (constants.LOCALHOST, constants.BROADCAST_PORT)
+
+    def stream_messages(user_id):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(broadcast_address)
+        resp = socket_lib.send_request('OpenStreamRequest', {'user_id': user_id}, 
+                                sock=sock, keep_alive=True)
+        while True:
+            message = socket_lib.recv_message(sock)
+            message = json.loads(message)['result']
+            user_id, message_text = message['sender_id'], message['message_text']
+            print(f'STREAM: {user_id} @ TODO: {message_text}')
+
+    multiprocessing.Process(target=stream_messages, args=(user_id,)).start()
+
     user_name = 'Fake User'
     print(f'Welcome {user_name}!')
     while True:
-        print('Select an option:\n  0: View chats\n  1: New chat')
-        option = int(input('> '))
-        if option == 0:
-            response = _send_request('GetChats', {'user_id': user_id})
-            chats = response['chats']
+        print('Main menu:\n    0: View chats\n    1: New chat')
+        option = get_input(expected_type=int)
+        if option is None:
+            break
+        elif option == 0:
+            chats = socket_lib.send_request(
+                    'GetChats', {'user_id': user_id}, address=data_address)
+            chats = chats['chats']
             if chats:
-                print('Select an open chat to continue messaging:')
+                print('Available chats:')
                 for i, chat in enumerate(chats):
-                    print(f'{i}: {chat["chat_name"]}')
-                chat_id = chats[int(input('> '))]['chat_id']
-                break
+                    chat_name = chat['chat_name']
+                    print(f'    {i}: {chat_name}')
+                option = get_input(expected_type=int)
+                if option is None:
+                    continue
+                chat_id = chats[option]['chat_id']
+                chat_loop(chat_id, user_id, data_address)
             else:
-                print('No chats found, going back to main menu.')
+                print('No chats found.')
                 continue
         elif option == 1:
             print('Type the csv of users you want to chat with:')
             user_ids = [int(user_id) for user_id in input('> ').split(',')]
             user_ids.append(user_id)
             params = {'chat_name': 'Some random name', 'user_ids': user_ids}
-            chat_id = _send_request('InsertChat', params)
-            break
-        else:
-            raise Exception(f'Unrecognized option "{option}"')
-
-    response = _send_request('GetMessages', {'chat_id': chat_id})
-    messages = response['messages']
-    for message in messages:
-        # TODO(eugenhotaj): Use the user_name instead of user_id when displaying
-        # messages. We could update Database.list_messages() to join on the 
-        # Users table and return messages with user_names. Another option is to
-        # create a Database.get_users(user_ids) method and join the user_names
-        # to the user_ids in code, which might be faster than the join, 
-        # especially if we don't index on user_names.
-        date_and_time = datetime.fromtimestamp(
-                int(message['message_ts'] / constants.MILLIS_PER_SEC))
-        user_id, message_text = message['user_id'], message['message_text' ]
-        print(f'{user_id} @ {date_and_time}: {message_text}')
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((constants.LOCALHOST, constants.BROADCAST_PORT))
-    sock.setblocking(False)
-    while True:
-        # First, receive and display all messages from the server.
-        messages = socket_lib.recv_all_messages(sock)
-        for message in messages:
-            sender, message_text = message['user_id'], message['message_text']
-            print(f'{sender:>3}: {message_text}')
-
-        message_text = input(f'{user_name}> ')
-            
-        # Then send back a response.
-        message = {
-                'chat_id': chat_id,
-                'user_id': user_id,
-                'user_name': user_name,
-                'message_text': message_text
-        }
-        request = {'method': 'BroadcastRequest', 'params': message, 'id': 0}
-        socket_lib.send_message(sock, json.dumps(request))
-
+            chat_id = socket_lib.send_request(
+                    'InsertChat', params, address=data_address)['chat_id']
+            chat_loop(chat_id, data_address)
+        
 
 if __name__ == '__main__':
     # Parse flags.
