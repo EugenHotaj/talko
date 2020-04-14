@@ -1,4 +1,4 @@
-# Talko
+# Talko 🌮
 
 *A fully functioning chat application built entierly from scratch (no HTTP, no 
 frameworks)*.
