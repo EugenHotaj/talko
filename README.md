@@ -13,7 +13,3 @@ to all participants.
 
 A primary goal of this project is to reinvent any wheel where it would be 
 interesting to do so.
-
-The name 'Grima' is an allusion to 
-[Grima Wormtounge](https://en.wikipedia.org/wiki/Gr%C3%ADma_Wormtongue). 
-
