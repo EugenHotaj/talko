@@ -97,6 +97,16 @@ class BroadcastResponse(_Serializable):
 
 # The classes below define the request/response protocol for the DataServer.
 @dataclasses.dataclass(frozen=True)
+class GetUsersRequest(_Serializable):
+    user_ids: List[int]
+
+
+@dataclasses.dataclass(frozen=True)
+class GetUsersResponse(_Serializable):
+    users: List[User]
+
+
+@dataclasses.dataclass(frozen=True)
 class InsertUserRequest(_Serializable):
     user_name: str
 
