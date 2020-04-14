@@ -1,9 +1,4 @@
-"""Module containing the server.
-
-See the 'socket_lib' module for the client-server communication protocol.
-
-Currently, a separate process is created for each client.
-"""
+"""Definitions of the BroadcastServer and DataServer."""
 
 import argparse
 import json
@@ -187,8 +182,8 @@ class DataServer(Server):
 
         if method == 'InsertUser':
             request = protocol.InsertUserRequest.from_json(params)
-            user_id = db_client.insert_user(request.user_name)
-            response = protocol.InsertUserResponse(user_id)
+            user = db_client.insert_user(request.user_name)
+            response = protocol.InsertUserResponse(user)
         elif method == 'GetChats':
             request = protocol.GetChatsRequest.from_json(params)
             chats = db_client.get_chats(request.user_id)
@@ -198,10 +193,10 @@ class DataServer(Server):
             user_ids = request.user_ids
             chat_id = None
             if len(user_ids) == 2:
-                chat_id = db_client.get_private_chat_id(*user_ids)
+                chat = db_client.get_private_chat_id(*user_ids)
             if not chat_id:
-                chat_id = db_client.insert_chat(request.chat_name, user_ids)
-            response = protocol.InsertChatResponse(chat_id)
+                chat = db_client.insert_chat(request.chat_name, user_ids)
+            response = protocol.InsertChatResponse(chat)
         elif method == 'GetMessages':
             request = protocol.GetMessagesRequest.from_json(params)
             messages = db_client.get_messages(request.chat_id)
@@ -209,7 +204,7 @@ class DataServer(Server):
         elif method == 'InsertMessage':
             request = protocol.InsertMessageRequest.from_json(params)
             message_ts = int(time.time() * constants.MILLIS_PER_SEC)
-            message_id = db_client.insert_message(
+            message = db_client.insert_message(
                     request.chat_id, 
                     request.user_id, 
                     request.message_text, 
@@ -219,16 +214,12 @@ class DataServer(Server):
                     receiver.user_id for receiver in receivers 
                     if receiver.user_id != request.user_id
             ]
-            request = protocol.BroadcastRequest(
-                    request.chat_id, 
-                    request.user_id, 
-                    request.message_text,
-                    receiver_ids)
+            request = protocol.BroadcastRequest(receiver_ids, message)
             socket_lib.send_request(
                     'BroadcastRequest', 
                     request.to_json(), 
                     address=self._broadcast_address)
-            response = protocol.InsertMessageResponse(message_id)
+            response = protocol.InsertMessageResponse(message)
         else:
             # TODO(eugenhotaj): Return back a malformed request response.
             raise NotImplementedError()

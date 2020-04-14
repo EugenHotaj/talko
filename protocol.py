@@ -39,6 +39,27 @@ class _Serializable:
             else:
                 kwargs[name] = _parse_field(type_, value)
         return cls(**kwargs)
+
+
+@dataclasses.dataclass(frozen=True)
+class User(_Serializable):
+    user_id: int
+    user_name: str
+
+
+@dataclasses.dataclass(frozen=True)
+class Chat(_Serializable):
+    chat_id: int
+    chat_name: str
+
+
+@dataclasses.dataclass(frozen=True)
+class Message(_Serializable):
+    message_id: int
+    chat_id: int
+    user_id: int
+    message_text: str
+    message_ts: int
                     
 
 # The classes below define the streaming conversation message protocol for the
@@ -65,10 +86,8 @@ class CloseStreamResponse(_Serializable):
 
 @dataclasses.dataclass(frozen=True)
 class BroadcastRequest(_Serializable):
-    chat_id: int
-    sender_id: int
-    message_text: str
     receiver_ids: List[int]
+    message: Message
 
 
 @dataclasses.dataclass(frozen=True)
@@ -78,34 +97,13 @@ class BroadcastResponse(_Serializable):
 
 # The classes below define the request/response protocol for the DataServer.
 @dataclasses.dataclass(frozen=True)
-class User(_Serializable):
-    user_id: int
-    user_name: str
-
-
-@dataclasses.dataclass(frozen=True)
-class Chat(_Serializable):
-    chat_id: int
-    chat_name: str
-
-
-@dataclasses.dataclass(frozen=True)
-class Message(_Serializable):
-    message_id: int
-    chat_id: int
-    user_id: int
-    message_text: str
-    message_ts: int
-
-
-@dataclasses.dataclass(frozen=True)
 class InsertUserRequest(_Serializable):
     user_name: str
 
 
 @dataclasses.dataclass(frozen=True)
 class InsertUserResponse(_Serializable):
-    user_id: int
+    user: User
 
 
 @dataclasses.dataclass(frozen=True)
@@ -126,7 +124,7 @@ class InsertChatRequest(_Serializable):
 
 @dataclasses.dataclass(frozen=True)
 class InsertChatResponse(_Serializable):
-    chat_id: int
+    chat: Chat
 
 
 @dataclasses.dataclass(frozen=True)
@@ -148,4 +146,4 @@ class InsertMessageRequest(_Serializable):
 
 @dataclasses.dataclass(frozen=True)
 class InsertMessageResponse(_Serializable):
-    message_id: int
+    message: Message

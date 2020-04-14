@@ -5,6 +5,15 @@ import os
 import sqlite3
 
 
+def recreate_db(db_path):
+    if os.path.exists(FLAGS.db_path):
+        os.remove(FLAGS.db_path)
+    connection = sqlite3.connect(FLAGS.db_path)
+    sql = open('schema.sql', 'r').read()
+    with connection:
+        connection.executescript(sql)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--db_path', type=str, required=True, 
@@ -12,10 +21,6 @@ if __name__ == '__main__':
     FLAGS = parser.parse_args()
 
     assert FLAGS.db_path, '--db_path cannot be empty'
+    recreate_db(FLAGS.db_path)
 
-    if os.path.exists(FLAGS.db_path):
-        os.remove(FLAGS.db_path)
-    connection = sqlite3.connect(FLAGS.db_path)
-    sql = open('schema.sql', 'r').read()
-    with connection:
-        connection.executescript(sql)
+

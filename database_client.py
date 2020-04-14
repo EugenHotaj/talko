@@ -32,12 +32,12 @@ class DatabaseClient:
         return [protocol.User(*row) for row in cursor.fetchall()]
 
     # TODO(eugenhotaj): Should we take in a User instance here?
-    def insert_user(self, user_id, user_name):
+    def insert_user(self, user_name):
         """Inserts a new user into the Users table."""
         query = 'INSERT INTO Users (user_id, user_name) VALUES (?, ?)'
         with self._connection:
-            self._connection.execute(query, (user_id, user_name))
-        return user_id
+            cursor = self._connection.execute(query, (user_id, user_name))
+        return protocol.User(cursor.lastrowid, user_name)
 
     def get_chats(self, user_id):
         """Returns all chats the user is participating in."""
@@ -80,16 +80,16 @@ class DatabaseClient:
         is_private = len(user_ids) == 2
         with self._connection:
             cursor = self._connection.execute(query, (chat_name, is_private))
+        chat_id = cursor.lastrowid
 
         # Inserting the participants does not need to happen in the same
         # transaction as inserting the chat.
-        chat_id = cursor.lastrowid
         participants = [(chat_id, user_id) for user_id in user_ids]
         query = 'INSERT INTO Participants (chat_id, user_id) VALUES (?, ?)'
         with self._connection:
             self._connection.executemany(query, participants)
 
-        return chat_id
+        return protocol.Chat(chat_id, chat_name)
 
     def get_messages(self, chat_id):
         """Returns all messages for the chat with given chat_id."""
@@ -109,4 +109,5 @@ class DatabaseClient:
         with self._connection:
             cursor = self._connection.execute(
                     query, (chat_id, user_id, message_text, message_ts))
-        return cursor.lastrowid
+        return protocol.Message(
+                cursor.lastrowid, chat_id, user_id, message_text, message_ts)
