@@ -78,29 +78,28 @@ class ChatsWindow(Window):
 
     def redraw(self):
         self._scr.erase()
-        self._scr.border()
-        self._scr.addstr(1, 1, 'Chats:')
+        self._scr.border(' ', 0, 0, 0, curses.ACS_HLINE, 0, curses.ACS_HLINE, 0)
+        self._scr.addstr(0, 1, 'Chats')
         right_align = len(str(len(self.data)))
         for i, chat in enumerate(self.data):
             chat_name = chat['chat_name']
-            text = f'{i + 1:>{right_align}}: {chat_name}'
-            self._scr.addstr(i + 2, 3, text)
+            text = f'{i + 1:>{right_align}}. {chat_name}'
+            self._scr.addstr(i + 1, 0, text)
 
 
 class MessagesWindow(Window):
 
     def redraw(self):
         self._scr.erase()
-        self._scr.border()
+        self._scr.border(0, 0, 0, 0, 
+                         0, curses.ACS_TTEE, curses.ACS_LTEE, curses.ACS_RTEE)
 
-        # TODO(eugenhotaj): Use the actual chat name here instead of hardcoding
-        # it.
-        self._scr.addstr(1, 1, 'Chat')
-        self._scr.addstr(2, 1, '-' * (self._width - 2))
+        # TODO(eugenhotaj): Use the actual chat name here.
+        self._scr.addstr(0, 2, 'Chat')
         for i, message in enumerate(self.data[-10:]):
             user_id, text = message['user_id'], message['message_text']
             text = f'{user_id}: {text}'
-            self._scr.addstr(i + 3, 1, text)
+            self._scr.addstr(i + 1, 1, text)
 
 
 class InputWindow(Window):
@@ -126,7 +125,8 @@ class InputWindow(Window):
 
     def redraw(self):
         self._scr.erase()
-        self._scr.border()
+        self._scr.border(0, 0, ' ', 0, 
+                         curses.ACS_VLINE, curses.ACS_VLINE, 0, curses.ACS_BTEE)
 
         data = self._prompt + self._data
         chars_per_line = self._width - 2
@@ -135,8 +135,8 @@ class InputWindow(Window):
             start = line * chars_per_line
             end = start + chars_per_line
             text = ''.join(data[start:end])
-            self._scr.addstr(line + 1, 1, text)
-        my, mx = lines, (len(data) % chars_per_line) + 1
+            self._scr.addstr(line, 1, text)
+        my, mx = lines - 1, (len(data) % chars_per_line) + 1
         my += 1 if mx == 1 else 0
         self._scr.move(my, mx)
 
