@@ -43,7 +43,7 @@ class ChatsWindow(Window):
     def redraw(self):
         self._scr.erase()
         self._scr.border(' ', 0, 0, 0, curses.ACS_HLINE, 0, curses.ACS_HLINE, 0)
-        self._scr.addstr(0, 1, 'Chats')
+        self._scr.addstr(0, 1, 'Recent')
         right_align = len(str(len(self._data)))
         for i, chat in enumerate(self._data):
             chat_name = chat['chat_name']
