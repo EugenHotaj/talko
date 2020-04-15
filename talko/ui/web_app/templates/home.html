@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" 
+       href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" 
+       integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" 
+       crossorigin="anonymous">
+    <link rel="stylesheet" 
+       href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+
+    <title>Talko</title>
+  </head>
+  <body>
+    <div class="container py-5 px-4">
+      <header class="text-center">
+        <h1 class="display-4 text-white">🌮</h1>
+      </header>
+      <div class="row rounded-lg overflow-hidden shadow">
+        <!-- Chats -->
+        <div class="col-4 px-0">
+          <div class="bg-white">
+            <div class="bg-gray px-4 py-2 bg-light">
+              <p class="h5 mb-0 py-1">Recent</p>
+            </div>
+            <div class="chats-box">
+              <div class="list-group rounded-0">
+                <a class="list-group-item list-group-item-action active text-white rounded-0">
+                  <div class="media">
+                    <div class="avatar mt-2">JR</div>
+                    <div class="media-body ml-4">
+                      <div class="d-flex align-items-center justify-content-between">
+                        <h6 class="mb-0">Joe Rogan</h6>
+                        <small class="small font-weight-bold">15 April</small>
+                      </div>
+                      <p class="font-italic mb-0 text-small">In my suana!</p>
+                    </div>
+                  </div>
+                </a>
+                <a href="#" 
+                    class="list-group-item list-group-item-action list-group-item-light rounded-0">
+                  <div class="media">
+                    <div class="avatar mt-2 rounded-circle">JL</div>
+                    <div class="media-body ml-4">
+                      <div class="d-flex align-items-center justify-content-between">
+                        <h6 class="mb-0">John Lennon</h6>
+                        <small class="small font-weight-bold">12 Dec</small>
+                      </div>
+                      <p class="font-italic text-muted mb-0 text-small">LOL, can you imagine?</p>
+                    </div>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="col-8 px-0">
+          <div class="px-4 py-5 messages-box bg-white">
+
+            <!-- Received message -->
+            <div class="media w-50">
+              <div class="avatar py-2">JR</div>
+              <div class="media-body ml-3">
+                <div class="bg-light rounded py-2 px-3">
+                  <p class="text-small mb-0 text-muted">In my sauna!</p>
+                </div>
+                <p class="small text-muted">April 15 | 12:00 PM</p>
+              </div>
+            </div>
+
+            <!-- Sent message -->
+            <div class="media w-50 ml-auto">
+              <div class="media-body">
+                <div class="bg-primary rounded py-2 px-3">
+                  <p class="text-small mb-0 text-white">...ok?</p>
+                </div>
+                <p class="small text-muted">April 15 | 12:01 PM</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Typing area -->
+          <form action="#" class="bg-light">
+            <div class="input-group">
+              <input type="text" placeholder="Type a message" aria-describedby="button-addon2" 
+                  class="form-control rounded-0 border-0 py-4 bg-light">
+              <div class="input-group-append">
+                <button id="button-addon2" type="submit" class="btn btn-link">
+                  <i class="fa fa-paper-plane"></i>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="font-weight-light text-center text-muted text-tiny">
+      Design by <a href="https://bootstrapious.com/">Bootstrapious</a>
+    </div>
+  </footer>
+
+  <!-- Bootstrap javascript -->
+  <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+      integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" 
+      crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+      integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" 
+      crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" 
+    integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" 
+    crossorigin="anonymous"></script>
+  </body>
+</html>
