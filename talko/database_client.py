@@ -8,7 +8,7 @@ import sqlite3
 # TODO(eugenhotaj): We should decouple the storage objects from the wire 
 # protocol so we can flexibly change the store implementation without affecting
 # the clients.
-import protocol
+from talko import protocol
 
 
 class DatabaseClient:

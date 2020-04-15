@@ -9,7 +9,7 @@ def recreate_db(db_path):
     if os.path.exists(FLAGS.db_path):
         os.remove(FLAGS.db_path)
     connection = sqlite3.connect(FLAGS.db_path)
-    sql = open('schema.sql', 'r').read()
+    sql = open('talko/schema.sql', 'r').read()
     with connection:
         connection.executescript(sql)
 

@@ -1,19 +1,29 @@
 """Definitions of the BroadcastServer and DataServer."""
 
+import os
 import argparse
 import json
+import logging
 import multiprocessing 
 import socket
 import time
 
-import constants
-import database_client 
-import protocol
-import socket_lib
+from talko import constants
+from talko import database_client 
+from talko import protocol
+from talko import socket_lib
 
 # NOTE(eugenhotaj): We use processes instead of threads to get around the GIL.
 MAX_WORKERS = 50
 
+# TODO(eugenhotaj): Add more robust logging capabilities.
+os.makedirs('/tmp/talko', exist_ok=True)
+logging.basicConfig(
+        filename='/tmp/talko/log.info',
+        filemode='w',
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s %(pathname)s:%(lineno)s %(message)s', 
+        datefmt='%m/%d/%Y %I:%M:%S %p')
 
 class Server:
     """A Server which can handle concurrent requests via processes.
@@ -22,17 +32,15 @@ class Server:
     overridden by the subclasses.
     """
 
-    def __init__(self, name, address, max_workers=None):
+    def __init__(self, address, max_workers=None):
         """Initializes a new Server instance.
         
         Args:
-            name: The name of the server.
             address: The (host, port) tuple address to bind this server to.
             max_workers: The total number of workers to use for serving 
                 requests. Requests which exceed the number of available workers
                 are dropped.
         """
-        self._name = name
         self._address = address
         self._max_workers = max_workers or MAX_WORKERS
 
@@ -52,15 +60,14 @@ class Server:
         raise NotImplementedError()
 
     def _handle_request(self, client_socket, host, port):
-        print(f'{self._name}: Connection from {host}:{port} established')
+        logging.info(f'Connection from {host}:{port} established')
         try:
             keep_alive = self.handle_request(client_socket)
             if not keep_alive:
                 client_socket.close()
-                print(f'{self._name}: Connection from {host}:{port} closed')
+                logging.info(f'Connection from {host}:{port} closed')
         except Exception:
             client_socket.close()
-            print(f'{self._name}: Connection from {host}:{port} interrupted')
             raise
 
     def _keep_if_alive(self, worker):
@@ -90,8 +97,7 @@ class Server:
                     # If the server is overloaded, shed any new connections.
                     client_socket.shutdown(socket.SHUT_RDWR)
                     client_socket.close()
-                    # TODO(eugenhotaj): Start logging instead of using print.
-                    print(f'{self._name}: [WARNING] Connection from {host}:{port} shed')
+                    logging.warning(f'Connection from {host}:{port} shed')
  
 
 class DataServer(Server):
@@ -115,7 +121,7 @@ class DataServer(Server):
                 which will handle broadcasting new messages to online users.
             db_path: The path to the SQLite chat database.
         """
-        super().__init__('DataServer', address, max_workers=max_workers)
+        super().__init__(address, max_workers=max_workers)
         self._broadcast_address = broadcast_address
         self._db_path = db_path
 
@@ -188,7 +194,7 @@ class BroadcastServer(Server):
             address: See the base class.
             max_workers: See the base class.
         """
-        super().__init__('BroadcastServer', address, max_workers=max_workers)
+        super().__init__(address, max_workers=max_workers)
         self._socket_table = multiprocessing.Manager().dict()
 
     def handle_request(self, client_socket):
@@ -230,27 +236,3 @@ class BroadcastServer(Server):
         response = {'result': response.to_json(), 'id': id_}
         socket_lib.send_message(client_socket, json.dumps(response))
         return keep_alive
-
-
-
-if __name__ == '__main__':
-    # Parse flags.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--db_path', type=str, required=True, 
-                        help='Path to the SQLite chat database')
-    FLAGS = parser.parse_args()
-
-    db_path = FLAGS.db_path
-    dataserver_address = (constants.LOCALHOST, constants.DATA_PORT)
-    broadcastserver_address = (constants.LOCALHOST, constants.BROADCAST_PORT)
-  
-    def start_data_server():
-        server = DataServer(dataserver_address, broadcastserver_address, db_path)
-        server.serve_forever()
-
-    def start_broadcast_server():
-        server = BroadcastServer(broadcastserver_address)
-        server.serve_forever()
-
-    multiprocessing.Process(target=start_data_server).start()
-    multiprocessing.Process(target=start_broadcast_server).start()

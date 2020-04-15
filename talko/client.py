@@ -8,8 +8,8 @@ import json
 import socket
 import threading 
 
-import protocol
-import socket_lib
+from talko import protocol
+from talko import socket_lib
 
 
 class Client:

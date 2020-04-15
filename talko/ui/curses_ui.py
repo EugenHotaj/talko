@@ -4,9 +4,8 @@ import argparse
 import curses
 import math
 
-import client as client_lib
-import constants
-
+from talko import client as client_lib
+from talko import constants
 
 _LEFT_PANE_PERCENT  = .7
 _INPUT_HEIGHT_PERCENT = .2
@@ -105,7 +104,7 @@ class InputWindow(Window):
         self._scr.move(my, mx)
 
 
-def main(stdscr, user_id, data_address, broadcast_address):
+def _main(stdscr, user_id, data_address, broadcast_address):
     height, width = stdscr.getmaxyx()
     left_pane_width = int(_LEFT_PANE_PERCENT * width)
     right_pane_width = width - left_pane_width
@@ -163,14 +162,6 @@ def main(stdscr, user_id, data_address, broadcast_address):
             message = client.insert_message(chat_id, user_id, message_text)
             messages_win.data = messages_win.data + [message]
 
- 
-if __name__ == '__main__':
-    # Parse flags.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--user_id', type=int, required=True, 
-                        help='Id for the connected user')
-    FLAGS = parser.parse_args()
-    user_id = FLAGS.user_id
-    data_address = (constants.LOCALHOST, constants.DATA_PORT)
-    broadcast_address = (constants.LOCALHOST, constants.BROADCAST_PORT)
-    curses.wrapper(main, user_id, data_address, broadcast_address)
+
+def main(user_id, data_address, broadcast_address):
+    curses.wrapper(_main, user_id, data_address, broadcast_address)
