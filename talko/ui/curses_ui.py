@@ -1,8 +1,9 @@
-"""A simple ncurses chat user interface."""
+"""A simple ncurses user interface for the chat."""
 
 import argparse
 import curses
 import math
+import threading
 
 from talko import client as client_lib
 from talko import constants
@@ -117,11 +118,8 @@ def _main(stdscr, user_id, data_address, broadcast_address):
     win = stdscr.subwin(n_lines, n_cols, begin_y, begin_x)
     messages_win = MessagesWindow(win)
 
-    def on_new_message(message):
-        messages_win.data = messages_win.data + [message]
-
-    client = client_lib.Client(user_id, data_address, broadcast_address, on_new_message)
-    user_name = client.get_users([user_id])[0]['user_name']
+    client = client_lib.Client(data_address, broadcast_address)
+    user_name = client.get_users([user_id])['users'][0]['user_name']
 
     # Component which handles the input box.
     n_lines, n_cols = input_height, left_pane_width
@@ -135,11 +133,22 @@ def _main(stdscr, user_id, data_address, broadcast_address):
     win = stdscr.subwin(n_lines, n_cols, begin_y, begin_x)
     chats_win = ChatsWindow(win)
 
-    chats = client.get_chats(user_id)
+    # Get initial data.
+    chats = client.get_chats(user_id)['chats']
     chat_id = chats[0]['chat_id']
     chats_win.data = chats
-    messages = client.get_messages(chat_id)
+    messages = client.get_messages(chat_id)['messages']
     messages_win.data = messages
+
+    # Handle new messages in a separate thread.
+    def on_new_message():
+        lock = threading.RLock()
+        message_generator = client.open_stream(user_id)
+        for message in message_generator:
+            with lock:
+                messages_win.data = messages_win.data + [message]
+
+    threading.Thread(target=on_new_message, daemon=True).start()
  
     stdscr.timeout(17)
     while True:
@@ -159,7 +168,7 @@ def _main(stdscr, user_id, data_address, broadcast_address):
         # Update state.
         message_text = input_win.send_input(char)
         if message_text is not None:
-            message = client.insert_message(chat_id, user_id, message_text)
+            message = client.insert_message(chat_id, user_id, message_text)['message']
             messages_win.data = messages_win.data + [message]
 
 
