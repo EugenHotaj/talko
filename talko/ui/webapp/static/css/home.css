@@ -21,10 +21,6 @@ body {
   border-radius: 1rem;
 }
 
-.text-small {
-  font-size: 0.9rem;
-}
-
 .text-tiny{
   font-size: 0.5rem;
 }
@@ -37,6 +33,11 @@ body {
 
 .rounded-lg {
   border-radius: 0.5rem;
+}
+
+.wrap-text {
+  max-width: 50%; 
+  overflow: break-word;
 }
 
 input::placeholder {

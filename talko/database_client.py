@@ -1,15 +1,36 @@
 """Module which provides communication with the database."""
 
-import collections
-from dataclasses import dataclass
+import dataclasses
 import os
 import sqlite3
-from typing import List
 
-# TODO(eugenhotaj): We should decouple the storage objects from the wire 
-# protocol so we can flexibly change the store implementation without affecting
-# the clients.
-from talko import protocol
+
+@dataclasses.dataclass
+class User:
+    user_id: int
+    user_name: str
+
+
+@dataclasses.dataclass
+class Chat:
+    chat_id: int
+    chat_name: str
+
+
+@dataclasses.dataclass
+class Participant:
+    participant_id: int
+    chat_id: int
+    user_id: int
+
+
+@dataclasses.dataclass
+class Message:
+    message_id: int
+    chat_id: int
+    user_id: int
+    message_text: str
+    message_ts: int
 
 
 def create_database(db_path, overwrite=False):
@@ -40,13 +61,12 @@ class DatabaseClient:
         self._path = db_path
         self._connection = sqlite3.connect(db_path)
 
-    def get_users(self, user_ids):
+    def get_user(self, user_id):
         """Returns the users with the given user_ids."""
-        ins = ', '.join('?' * len(user_ids))
-        query = f'SELECT * FROM Users WHERE user_id IN ({ins})'
+        query = f'SELECT * FROM Users WHERE user_id = ?'
         with self._connection:
-            cursor = self._connection.execute(query, user_ids)
-        return [protocol.User(*row) for row in cursor.fetchall()]
+            cursor = self._connection.execute(query, user_id)
+        return [User(*row) for row in cursor.fetchall()]
 
     # TODO(eugenhotaj): Should we take in a User instance here?
     def insert_user(self, user_name):
@@ -54,7 +74,7 @@ class DatabaseClient:
         query = 'INSERT INTO Users (user_id, user_name) VALUES (?, ?)'
         with self._connection:
             cursor = self._connection.execute(query, (user_id, user_name))
-        return protocol.User(cursor.lastrowid, user_name)
+        return User(cursor.lastrowid, user_name)
 
     def get_chats(self, user_id):
         """Returns all chats the user is participating in."""
@@ -63,7 +83,7 @@ class DatabaseClient:
             WHERE user_id = ?"""
         with self._connection:
             cursor = self._connection.execute(query, (user_id,))
-        return [protocol.Chat(*row) for row in cursor.fetchall()]
+        return [Chat(*row) for row in cursor.fetchall()]
 
     def get_participants(self, chat_id):
         """Returns all users participating in the chat with given chat_id."""
@@ -72,7 +92,7 @@ class DatabaseClient:
             WHERE chat_id = ?"""
         with self._connection:
             cursor = self._connection.execute(query, (chat_id,))
-        return [protocol.User(*row) for row in cursor.fetchall()]
+        return [User(*row) for row in cursor.fetchall()]
 
     def get_private_chat_id(self, user1_id, user2_id):
         """Returns the id of the private chat between the given users."""
@@ -106,14 +126,14 @@ class DatabaseClient:
         with self._connection:
             self._connection.executemany(query, participants)
 
-        return protocol.Chat(chat_id, chat_name)
+        return Chat(chat_id, chat_name)
 
     def get_messages(self, chat_id):
         """Returns all messages for the chat with given chat_id."""
         query = 'SELECT * FROM Messages WHERE chat_id = ? ORDER BY message_ts'
         with self._connection:
             cursor = self._connection.execute(query, (chat_id,))
-        return [protocol.Message(*row) for row in cursor.fetchall()]
+        return [Message(*row) for row in cursor.fetchall()]
 
     # TODO(eugenhotaj): Should we take in a Message instance here and check that
     # message_id == None? We then return a new Message with message_id = 
@@ -126,5 +146,5 @@ class DatabaseClient:
         with self._connection:
             cursor = self._connection.execute(
                     query, (chat_id, user_id, message_text, message_ts))
-        return protocol.Message(
+        return Message(
                 cursor.lastrowid, chat_id, user_id, message_text, message_ts)

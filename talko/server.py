@@ -132,17 +132,37 @@ class DataServer(Server):
         request = json.loads(request)
         method, params, id_ = request['method'], request['params'], request['id']
 
-        if method == 'GetUsers':
-            request = protocol.GetUsersRequest.from_json(params)
-            user = db_client.get_users(request.user_ids)
-            response = protocol.GetUsersResponse(user)
+        if method == 'GetUser':
+            request = protocol.GetUserRequest.from_json(params)
+            user = db_client.get_user(request.user_id)
+            response = protocol.GetUserResponse(user)
         elif method == 'InsertUser':
             request = protocol.InsertUserRequest.from_json(params)
             user = db_client.insert_user(request.user_name)
             response = protocol.InsertUserResponse(user)
         elif method == 'GetChats':
+            # TODO(eugen): This is horrible!!! We need to be smarter about
+            # how we fill out the chat objects. Either via joins, or by bulk
+            # requesting users and messages.
             request = protocol.GetChatsRequest.from_json(params)
-            chats = db_client.get_chats(request.user_id)
+            chats = []
+            for chat in db_client.get_chats(request.user_id):
+                users = {}
+                for p in db_client.get_participants(chat.chat_id):
+                    users[p.user_id] = protocol.User(p.user_id, p.user_name)
+                messages = []
+                for m in db_client.get_messages(chat.chat_id):
+                    message = protocol.Message(
+                            m.message_id,
+                            m.chat_id,
+                            users[m.user_id],
+                            m.message_text,
+                            m.message_ts)
+                    messages.append(message)
+                chat = protocol.Chat(
+                    chat.chat_id, chat.chat_name, list(users.values()), messages)
+                chats.append(chat)
+            chats = sorted(chats, key=lambda chat: chat.messages[-1].message_ts)
             response = protocol.GetChatsResponse(chats)
         elif method == 'InsertChat':
             request = protocol.InsertChatRequest.from_json(params)
@@ -154,8 +174,22 @@ class DataServer(Server):
                 chat = db_client.insert_chat(request.chat_name, user_ids)
             response = protocol.InsertChatResponse(chat)
         elif method == 'GetMessages':
+            # TODO(eugen): This is horrible!!! We need to be smarter about
+            # how we fill out the chat objects. Either via joins, or by bulk
+            # requesting users and messages.
             request = protocol.GetMessagesRequest.from_json(params)
-            messages = db_client.get_messages(request.chat_id)
+            users = {}
+            for p in db_client.get_participants(request.chat_id):
+                users[p.user_id] = protocol.User(p.user_id, p.user_name)
+            messages = []
+            for m in db_client.get_messages(request.chat_id):
+                message = protocol.Message(
+                        m.message_id,
+                        m.chat_id,
+                        users[m.user_id],
+                        m.message_text,
+                        m.message_ts)
+                messages.append(message)
             response = protocol.GetMessagesResponse(messages)
         elif method == 'InsertMessage':
             request = protocol.InsertMessageRequest.from_json(params)

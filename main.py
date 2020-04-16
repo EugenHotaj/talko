@@ -17,7 +17,7 @@ from talko import constants
 from talko import database_client
 from talko import server
 from talko.ui import curses_ui
-from talko.ui.web_app import app
+from talko.ui.webapp import app
 
 
 def _check_socket(address):

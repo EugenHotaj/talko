@@ -31,31 +31,26 @@
             </div>
             <div class="chats-box">
               <div class="list-group rounded-0">
+                {% for chat in client.get_chats(user_id).chats %}
                 <a class="list-group-item list-group-item-action active text-white rounded-0">
                   <div class="media">
-                    <div class="avatar mt-2">JR</div>
+                    <div class="avatar mt-2">
+                      {{ chat_avatar_text(chat, user_id) }}
+                    </div>
                     <div class="media-body ml-4">
                       <div class="d-flex align-items-center justify-content-between">
-                        <h6 class="mb-0">Joe Rogan</h6>
-                        <small class="small font-weight-bold">15 April</small>
+                        <h6 class="mb-0">{{ title(chat, user_id) }}</h6>
+                        <small class="small font-weight-bold">
+                          {{ chat.messages[-1].message_ts | date}}
+                        </small>
                       </div>
-                      <p class="font-italic mb-0 text-small">In my suana!</p>
+                      <p class="font-italic mb-0 small">
+                        {{ chat.messages[-1].message_text }}
+                      </p>
                     </div>
                   </div>
                 </a>
-                <a href="#" 
-                    class="list-group-item list-group-item-action list-group-item-light rounded-0">
-                  <div class="media">
-                    <div class="avatar mt-2 rounded-circle">JL</div>
-                    <div class="media-body ml-4">
-                      <div class="d-flex align-items-center justify-content-between">
-                        <h6 class="mb-0">John Lennon</h6>
-                        <small class="small font-weight-bold">12 Dec</small>
-                      </div>
-                      <p class="font-italic text-muted mb-0 text-small">LOL, can you imagine?</p>
-                    </div>
-                  </div>
-                </a>
+                {% endfor %}
               </div>
             </div>
           </div>
@@ -63,28 +58,24 @@
 
         <!-- Messages -->
         <div class="col-8 px-0">
-          <div class="px-4 py-5 messages-box bg-white">
-
-            <!-- Received message -->
-            <div class="media w-50">
-              <div class="avatar py-2">JR</div>
-              <div class="media-body ml-3">
-                <div class="bg-light rounded py-2 px-3">
-                  <p class="text-small mb-0 text-muted">In my sauna!</p>
+          <div class="px-3 pt-4 messages-box bg-white">
+            {% for message in client.get_messages(chat_id=1)['messages'] %}
+            <div class="media">
+              {% if message.user.user_id != user_id %}
+              <div class="avatar py-2">{{ user_avatar_text(message.user) }}</div>
+              <div class="media-body ml-3 d-flex align-items-start flex-column">
+                <div class= "bg-light rounded p-2 wrap-text">
+                  <p class="mb-0 text-muted rounded">{{ message.message_text }}</p>
+              {% else  %}
+              <div class="media-body ml-3 d-flex align-items-end flex-column">
+                <div class= "bg-primary rounded p-2 wrap-text">
+                  <p class="mb-0 text-white text-right rounded">{{ message.message_text }}</p>
+              {% endif %}
                 </div>
-                <p class="small text-muted">April 15 | 12:00 PM</p>
+                <p class="small text-muted">{{ message.message_ts | datetime }}</p>
               </div>
             </div>
-
-            <!-- Sent message -->
-            <div class="media w-50 ml-auto">
-              <div class="media-body">
-                <div class="bg-primary rounded py-2 px-3">
-                  <p class="text-small mb-0 text-white">...ok?</p>
-                </div>
-                <p class="small text-muted">April 15 | 12:01 PM</p>
-              </div>
-            </div>
+            {% endfor %}
           </div>
 
           <!-- Typing area -->

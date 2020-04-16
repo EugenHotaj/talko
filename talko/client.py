@@ -41,10 +41,10 @@ class Client:
             message = json.loads(message)['result']['message']
             yield message 
 
-    def get_users(self, user_ids):
-        request = protocol.GetUsersRequest(user_ids)
+    def get_user(self, user_id):
+        request = protocol.GetUserRequest(user_id)
         response = socket_lib.send_request(
-                'GetUsers', request.to_json(), address=self._data_address)
+                'GetUser', request.to_json(), address=self._data_address)
         return response
 
     def get_chats(self, user_id):

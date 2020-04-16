@@ -48,18 +48,20 @@ class User(_Serializable):
 
 
 @dataclasses.dataclass(frozen=True)
-class Chat(_Serializable):
-    chat_id: int
-    chat_name: str
-
-
-@dataclasses.dataclass(frozen=True)
 class Message(_Serializable):
     message_id: int
     chat_id: int
-    user_id: int
+    user: User
     message_text: str
     message_ts: int
+
+
+@dataclasses.dataclass(frozen=True)
+class Chat(_Serializable):
+    chat_id: int
+    chat_name: str
+    users: List[User]
+    messages: List[Message]
                     
 
 # The classes below define the streaming conversation message protocol for the
@@ -97,13 +99,13 @@ class BroadcastResponse(_Serializable):
 
 # The classes below define the request/response protocol for the DataServer.
 @dataclasses.dataclass(frozen=True)
-class GetUsersRequest(_Serializable):
-    user_ids: List[int]
+class GetUserRequest(_Serializable):
+    user_id: int
 
 
 @dataclasses.dataclass(frozen=True)
-class GetUsersResponse(_Serializable):
-    users: List[User]
+class GetUserResponse(_Serializable):
+    user: User
 
 
 @dataclasses.dataclass(frozen=True)

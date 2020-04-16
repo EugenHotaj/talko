@@ -119,7 +119,7 @@ def _main(stdscr, user_id, data_address, broadcast_address):
     messages_win = MessagesWindow(win)
 
     client = client_lib.Client(data_address, broadcast_address)
-    user_name = client.get_users([user_id])['users'][0]['user_name']
+    user_name = client.get_user(user_id)['user']['user_name']
 
     # Component which handles the input box.
     n_lines, n_cols = input_height, left_pane_width
