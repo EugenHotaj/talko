@@ -1,0 +1,22 @@
+{% for chat in chats %}
+<a href="#" class="list-group-item list-group-item-action active text-white rounded-0"
+    data-chat-id={{chat.chat_id}}>
+  <div class="media">
+    <div class="avatar mt-2">
+      {{ chat_avatar_text(chat, user_id) }}
+    </div>
+    <div class="media-body ml-4">
+      <div class="d-flex align-items-center justify-content-between">
+        <h6 class="mb-0">{{ title(chat, user_id) }}</h6>
+        <small class="small font-weight-bold">
+          {{ chat.messages[-1].message_ts | date}}
+        </small>
+      </div>
+      <p class="font-italic mb-0 small">
+        {{ chat.messages[-1].message_text }}
+      </p>
+    </div>
+  </div>
+</a>
+{% endfor %}
+

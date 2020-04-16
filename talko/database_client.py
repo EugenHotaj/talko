@@ -66,7 +66,7 @@ class DatabaseClient:
         query = f'SELECT * FROM Users WHERE user_id = ?'
         with self._connection:
             cursor = self._connection.execute(query, user_id)
-        return [User(*row) for row in cursor.fetchall()]
+        return User(*cursor.fetchone())
 
     # TODO(eugenhotaj): Should we take in a User instance here?
     def insert_user(self, user_name):

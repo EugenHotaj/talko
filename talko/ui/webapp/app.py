@@ -22,9 +22,36 @@ def main(data_address, broadcast_address):
     @app.route('/index')
     def home():
         user_id = int(flask.request.args.get('user_id'))
-        return flask.render_template(
-                'home.html', client=backend_client, user_id=user_id)
+        chats = backend_client.get_chats(user_id)['chats']
+        return flask.render_template('home.html', user_id=user_id, chats=chats)
 
+    @app.route('/chats')
+    def get_chats():
+        user_id = int(flask.request.args.get('user_id'))
+        chats = backend_client.get_chats(user_id)['chats']
+        return flask.render_template('chats.html', user_id=user_id, chats=chats)
+
+    @app.route('/messages')
+    def get_messages():
+        user_id = int(flask.request.args.get('user_id'))
+        chat_id = int(flask.request.args.get('chat_id'))
+        messages = backend_client.get_messages(chat_id)['messages']
+        return flask.render_template(
+                'messages.html', user_id=user_id, messages=messages)
+
+    @app.route('/messages', methods=['POST'])
+    def insert_message():
+        try:
+            user_id = flask.request.form['user_id']
+            chat_id = flask.request.form['chat_id']
+            message_text = flask.request.form['message_text']
+        except (TypeError, KeyError):
+            return flask.abort(400)
+        a = backend_client.insert_message(chat_id, user_id, message_text)
+        messages = backend_client.get_messages(chat_id)['messages']
+        return flask.render_template(
+                'messages.html', user_id=int(user_id), messages=messages)
+        
 
     def _user_avatar_text(user_name):
         return ''.join([split[0] for split in user_name.split(' ')])

@@ -14,7 +14,7 @@ from talko import protocol
 from talko import socket_lib
 
 # NOTE(eugenhotaj): We use processes instead of threads to get around the GIL.
-MAX_WORKERS = 50
+MAX_WORKERS = 10000
 
 # TODO(eugenhotaj): Add more robust logging capabilities.
 os.makedirs('/tmp/talko', exist_ok=True)
@@ -71,9 +71,12 @@ class Server:
             raise
 
     def _keep_if_alive(self, worker):
-        is_alive = worker.is_alive()
-        if not is_alive:
-            worker.close()
+        try:
+            is_alive = worker.is_alive()
+            if not is_alive:
+                worker.close()
+        except ValueError:
+            return False
         return is_alive
 
     def serve_forever(self):
@@ -83,8 +86,8 @@ class Server:
 
         workers = []
         while True:
-            workers = [w for w in workers if self._keep_if_alive(worker)]
             result = self._socket.accept()
+            workers = [w for w in workers if self._keep_if_alive(worker)]
             if result:
                 client_socket, (host, port) = result
                 if len(workers) < self._max_workers:
@@ -199,6 +202,14 @@ class DataServer(Server):
                     request.user_id, 
                     request.message_text, 
                     message_ts)
+            user = db_client.get_user(request.user_id)
+            user = protocol.User(user.user_id, user.user_name)
+            message = protocol.Message(
+                    message.message_id,
+                    message.chat_id,
+                    user,
+                    message.message_text,
+                    message.message_ts)
             receivers = db_client.get_participants(request.chat_id)
             receiver_ids = [
                     receiver.user_id for receiver in receivers 

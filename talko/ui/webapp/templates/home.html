@@ -23,73 +23,34 @@
         <h1 class="display-4 text-white">🌮</h1>
       </header>
       <div class="row rounded-lg overflow-hidden shadow">
+ 
         <!-- Chats -->
-        <div class="col-4 px-0">
-          <div class="bg-white">
-            <div class="bg-gray px-4 py-2 bg-light">
-              <p class="h5 mb-0 py-1">Recent</p>
-            </div>
-            <div class="chats-box">
-              <div class="list-group rounded-0">
-                {% for chat in client.get_chats(user_id).chats %}
-                <a class="list-group-item list-group-item-action active text-white rounded-0">
-                  <div class="media">
-                    <div class="avatar mt-2">
-                      {{ chat_avatar_text(chat, user_id) }}
-                    </div>
-                    <div class="media-body ml-4">
-                      <div class="d-flex align-items-center justify-content-between">
-                        <h6 class="mb-0">{{ title(chat, user_id) }}</h6>
-                        <small class="small font-weight-bold">
-                          {{ chat.messages[-1].message_ts | date}}
-                        </small>
-                      </div>
-                      <p class="font-italic mb-0 small">
-                        {{ chat.messages[-1].message_text }}
-                      </p>
-                    </div>
-                  </div>
-                </a>
-                {% endfor %}
-              </div>
-            </div>
+        <div class="bg-white col-4 px-0">
+          <div class="bg-gray px-4 py-2 bg-light">
+            <p class="h5 mb-0 py-1">Recent</p>
+          </div>
+          <div class="chats-box">
+            {% include "chats.html" %}
           </div>
         </div>
-
-        <!-- Messages -->
-        <div class="col-8 px-0">
+        
+        <div class="col-8 px-0"> 
+          <!-- Messges -->
           <div class="px-3 pt-4 messages-box bg-white">
-            {% for message in client.get_messages(chat_id=1)['messages'] %}
-            <div class="media">
-              {% if message.user.user_id != user_id %}
-              <div class="avatar py-2">{{ user_avatar_text(message.user) }}</div>
-              <div class="media-body ml-3 d-flex align-items-start flex-column">
-                <div class= "bg-light rounded p-2 wrap-text">
-                  <p class="mb-0 text-muted rounded">{{ message.message_text }}</p>
-              {% else  %}
-              <div class="media-body ml-3 d-flex align-items-end flex-column">
-                <div class= "bg-primary rounded p-2 wrap-text">
-                  <p class="mb-0 text-white text-right rounded">{{ message.message_text }}</p>
-              {% endif %}
-                </div>
-                <p class="small text-muted">{{ message.message_ts | datetime }}</p>
-              </div>
-            </div>
-            {% endfor %}
+          {% include "messages.html" %}
           </div>
 
           <!-- Typing area -->
-          <form action="#" class="bg-light">
-            <div class="input-group">
-              <input type="text" placeholder="Type a message" aria-describedby="button-addon2" 
-                  class="form-control rounded-0 border-0 py-4 bg-light">
-              <div class="input-group-append">
-                <button id="button-addon2" type="submit" class="btn btn-link">
-                  <i class="fa fa-paper-plane"></i>
-                </button>
-              </div>
+          <div class="input-group bg-light">
+            <input id="send-input" type="text" placeholder="Type a message" 
+                class="form-control rounded-0 border-0 py-4 bg-light">
+            <div class="input-group-append">
+              <button id='send-message' type="submit" class="btn btn-link">
+                <i class="fa fa-paper-plane"></i>
+              </button>
             </div>
-          </form>
+          </div>
+
         </div>
       </div>
     </div>
@@ -102,8 +63,8 @@
   </footer>
 
   <!-- Bootstrap javascript -->
-  <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
-      integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" 
+  <script src="https://code.jquery.com/jquery-3.5.0.min.js"
+      integrity="sha256-xNzN2a4ltkB44Mc/Jz3pT4iU1cmeR0FkXs4pru/JxaQ="
       crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
       integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" 
@@ -111,5 +72,47 @@
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" 
     integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" 
     crossorigin="anonymous"></script>
+  <script>
+    $(document).ready(function() {
+      const user_id = {{ user_id }};
+      let chat_id = {{ chats[0].chat_id }};
+      let first_time = true;
+
+      function getChats(user_id) {
+        $.get(`/chats?user_id=${user_id}`, {})
+          .done(html => { $(".chats-box").html(html); });
+      }
+
+      function setMessagesHtml(html) {
+        // TODO(eugenhotaj): This is terrible...
+        const current_html = $(".messages-box").html();
+        $(".messages-box").html(html);
+        if (!current_html === html || first_time) {
+          $(".messages-box").scrollTop($(".messages-box")[0].scrollHeight);
+          first_time = false;
+        }
+      }
+
+      function getMessages(user_id, chat_id) {
+        $.get(`/messages?user_id=${user_id}&chat_id=${chat_id}`, {})
+          .done(html => { setMessagesHtml(html); });
+      }
+
+      $("#send-message").click(() => {
+        $.post('/messages', {
+          "chat_id": chat_id, "user_id": user_id, "message_text": $("#send-input").val()
+        }).done(html => { setMessagesHtml(html); })
+        $("#send-input").val("");
+      });
+
+      // Poll for ne messages every 10ms.
+      (function poll() {
+        setTimeout(() => {
+          getMessages(user_id, chat_id);
+          poll();
+        }, 50);
+      })();
+    });
+  </script>
   </body>
 </html>
