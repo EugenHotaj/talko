@@ -148,7 +148,7 @@ def _main(stdscr, user_id, data_address, broadcast_address):
         message_generator = client.open_stream(user_id)
         for message in message_generator:
             with lock:
-                messages_win.data = messages_win.data + [message]
+                messages_win.data = messages_win.data + [message['message']]
 
     threading.Thread(target=on_new_message, daemon=True).start()
  
@@ -170,6 +170,7 @@ def _main(stdscr, user_id, data_address, broadcast_address):
         # Update state.
         message_text = input_win.send_input(char)
         if message_text is not None:
+            chat_id = open_chat['chat_id']
             message = client.insert_message(chat_id, user_id, message_text)['message']
             messages_win.data = messages_win.data + [message]
 
