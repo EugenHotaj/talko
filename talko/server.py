@@ -162,8 +162,16 @@ class DataServer(Server):
                             m.message_text,
                             m.message_ts)
                     messages.append(message)
+                # TODO(eugenhotaj): Move chat_name logic to a helper function.
+                users = list(users.values())
+                chat_name = chat.chat_name
+                if len(users) == 2:
+                    chat_name = [
+                            user.user_name for user in users 
+                            if user.user_id != request.user_id
+                    ][0]
                 chat = protocol.Chat(
-                    chat.chat_id, chat.chat_name, list(users.values()), messages)
+                    chat.chat_id, chat_name, users, messages)
                 chats.append(chat)
             chats = sorted(chats, key=lambda chat: chat.messages[-1].message_ts)
             response = protocol.GetChatsResponse(chats)

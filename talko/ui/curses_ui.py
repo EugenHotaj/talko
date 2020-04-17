@@ -54,16 +54,20 @@ class ChatsWindow(Window):
 
 class MessagesWindow(Window):
 
+    def __init__(self, scr, chat_name):
+        super().__init__(scr)
+        self._chat_name = chat_name
+
     def redraw(self):
         self._scr.erase()
         self._scr.border(0, 0, 0, 0, 
                          0, curses.ACS_TTEE, curses.ACS_LTEE, curses.ACS_RTEE)
 
         # TODO(eugenhotaj): Use the actual chat name here.
-        self._scr.addstr(0, 2, 'Chat')
+        self._scr.addstr(0, 2, self._chat_name)
         for i, message in enumerate(self._data[-10:]):
-            user_id, text = message['user_id'], message['message_text']
-            text = f'{user_id}: {text}'
+            user , text = message['user'], message['message_text']
+            text = f'{user["user_name"]}: {text}'
             self._scr.addstr(i + 1, 1, text)
 
 
@@ -111,15 +115,19 @@ def _main(stdscr, user_id, data_address, broadcast_address):
     right_pane_width = width - left_pane_width
     input_height = int(_INPUT_HEIGHT_PERCENT * height)
     messages_height = height - input_height
+ 
+    client = client_lib.Client(data_address, broadcast_address)
+    user_name = client.get_user(user_id)['user']['user_name']
+    chats = client.get_chats(user_id)['chats']
+    open_chat = chats[0]
+    messages = client.get_messages(open_chat['chat_id'])['messages']
 
     # Component which renders the current conversation messages.
     n_lines, n_cols = messages_height, left_pane_width
     begin_y, begin_x = 0, 0
     win = stdscr.subwin(n_lines, n_cols, begin_y, begin_x)
-    messages_win = MessagesWindow(win)
-
-    client = client_lib.Client(data_address, broadcast_address)
-    user_name = client.get_user(user_id)['user']['user_name']
+    messages_win = MessagesWindow(win, open_chat['chat_name'])
+    messages_win.data = messages
 
     # Component which handles the input box.
     n_lines, n_cols = input_height, left_pane_width
@@ -132,13 +140,7 @@ def _main(stdscr, user_id, data_address, broadcast_address):
     begin_y, begin_x = 0, left_pane_width 
     win = stdscr.subwin(n_lines, n_cols, begin_y, begin_x)
     chats_win = ChatsWindow(win)
-
-    # Get initial data.
-    chats = client.get_chats(user_id)['chats']
-    chat_id = chats[0]['chat_id']
     chats_win.data = chats
-    messages = client.get_messages(chat_id)['messages']
-    messages_win.data = messages
 
     # Handle new messages in a separate thread.
     def on_new_message():

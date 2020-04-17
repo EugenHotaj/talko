@@ -32,17 +32,6 @@ function getChatAvatarText(chat, userId) {
   }
 }
 
-function getChatTitle(chat) {
-  if (chat.users.length > 2) {
-    return chat.chat_title;
-  }
-  for (user of chat.users) {
-    if (user.user_id != window.userId_) {
-      return user.user_name;
-    }
-  }
-} 
-
 function getChats(userId) {
   return $.get(`/chats?user_id=${userId}`, {})
     .done(response => { 
