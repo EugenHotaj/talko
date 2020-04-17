@@ -6,6 +6,7 @@ See the 'protocol' module for what methods the servers support.
 
 import json
 import socket
+import time
 
 from talko import protocol
 from talko import socket_lib
@@ -30,7 +31,6 @@ class Client:
         WARNING: This function returns a *blocking* generator which yields new
         messages as they are received from the server.
         """
-
         stream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         stream_socket.connect(self._broadcast_address)
         request = protocol.OpenStreamRequest(user_id)
@@ -38,8 +38,29 @@ class Client:
                                 sock=stream_socket, keep_alive=True)
         while True:
             message = socket_lib.recv_message(stream_socket)
-            message = json.loads(message)['result']['message']
+            message = json.loads(message)['result']
             yield message 
+
+    def receive_one_message(self, user_id, timeout=None):
+        """Waits up to 'timeout' seconds to receive a single message.
+
+        If 'timeout' is 'None', blocks indefinetly until a message is received. 
+        Returns an empty object if 'timeout' is not 'None' and no message is
+        received within the 'timeout' interval.
+        """
+        stream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        stream_socket.settimeout(timeout)
+        try:
+            stream_socket.connect(self._broadcast_address)
+            request = protocol.OpenStreamRequest(user_id)
+            socket_lib.send_request('OpenStreamRequest', request.to_json(),
+                                    sock=stream_socket, keep_alive=True)
+            message = socket_lib.recv_message(stream_socket)
+            return json.loads(message)['result']
+        except socket.timeout:
+            return {}
+        finally:
+            stream_socket.close()
 
     def get_user(self, user_id):
         request = protocol.GetUserRequest(user_id)

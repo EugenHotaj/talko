@@ -65,7 +65,7 @@ class DatabaseClient:
         """Returns the users with the given user_ids."""
         query = f'SELECT * FROM Users WHERE user_id = ?'
         with self._connection:
-            cursor = self._connection.execute(query, user_id)
+            cursor = self._connection.execute(query, (user_id,))
         return User(*cursor.fetchone())
 
     def insert_user(self, user_name):

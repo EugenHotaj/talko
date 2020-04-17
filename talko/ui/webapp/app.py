@@ -6,6 +6,7 @@ translating between HTTP/1.1 requests to our custom RPC protocol.
 
 from datetime import datetime
 import os
+import multiprocessing
 
 import flask
 import json
@@ -14,6 +15,7 @@ from talko import client
 
 def main(data_address, broadcast_address):
     backend_client = client.Client(data_address, broadcast_address)
+    user_to_thread = {}
 
     app = flask.Flask(__name__)
 
@@ -37,16 +39,16 @@ def main(data_address, broadcast_address):
 
     @app.route('/messages', methods=['POST'])
     def insert_message():
-        try:
-            user_id = flask.request.form['user_id']
-            chat_id = flask.request.form['chat_id']
-            message_text = flask.request.form['message_text']
-        except (TypeError, KeyError):
+        chat_id = flask.request.json.get('chat_id')
+        user_id = flask.request.json.get('user_id')
+        message_text = flask.request.json.get('message_text')
+        if None in (chat_id, user_id, message_text):
             return flask.abort(400)
-        a = backend_client.insert_message(chat_id, user_id, message_text)
-        messages = backend_client.get_messages(chat_id)['messages']
-        return flask.render_template(
-                'messages.html', user_id=int(user_id), messages=messages)
-        
+        return backend_client.insert_message(chat_id, user_id, message_text)
+
+    @app.route('/message-stream')
+    def message_stream():
+        user_id = int(flask.request.args.get('user_id'))
+        return backend_client.receive_one_message(user_id, timeout=25)
 
     app.run(debug=True)

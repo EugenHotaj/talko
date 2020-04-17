@@ -1,5 +1,7 @@
 # Ignore vim swap files.
 *.swp
+*.un~
+*.DS_Store
 
 # Ignore SQLite database files.
 *.db

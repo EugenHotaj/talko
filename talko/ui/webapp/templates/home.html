@@ -39,15 +39,15 @@
           </div>
 
           <!-- Typing area -->
-          <div class="input-group bg-light">
-            <input id="send-input" type="text" placeholder="Type a message" 
+          <form id='send-message' class="input-group bg-light">
+            <input id='send-input' autocomplete="off" type="text" placeholder="Type a message" 
                 class="form-control rounded-0 border-0 py-4 bg-light">
             <div class="input-group-append">
-              <button id='send-message' type="submit" class="btn btn-link">
+              <button type="submit" class="btn btn-link">
                 <i class="fa fa-paper-plane"></i>
               </button>
             </div>
-          </div>
+          </form>
 
         </div>
       </div>
@@ -72,102 +72,10 @@
     crossorigin="anonymous"></script>
   <script>
     $(document).ready(function() {
-      window.userId_ = {{ user_id }};
-      window.chatId_ = undefined;
-      window.chats_ = [];
-      window.messages_ = [];
-
-      function timestampToDateTime(timestamp, include_time = true) {
-        const dateTime = new Date(timestamp);
-        let options = { month: 'long', day: 'numeric'};
-        if (include_time) {
-          options.hour = 'numeric';
-          options.minute = 'numeric';
-        }
-        return dateTime.toLocaleDateString('us-ES', options)
-      }
-
-      function getUserAvatarText(userName) {
-        text = "" 
-        for (split of userName.split(" ")) {
-          text += split[0]
-        }
-        return text
-      }
-
-      function getChatAvatarText(chat, userId) {
-        if (chat.users.length > 2) {
-          return `+${chat.users.length - 1}`;
-        }
-        for (user of chat.users) {
-          if (user.user_id != window.userId_) {
-            return getUserAvatarText(user.user_name);
-          }
-        }
-      }
-
-      function getChatTitle(chat) {
-        if (chat.users.length > 2) {
-          return chat.chat_title;
-        }
-        for (user of chat.users) {
-          if (user.user_id != window.userId_) {
-            return user.user_name;
-          }
-        }
-      } 
-
-      function getChats(userId) {
-        return $.get(`/chats?user_id=${userId}`, {})
-          .done(response => { 
-            // TODO(eugenhotaj): We need more robust checking here, e.g.
-            // that all the chat_ids are the same.
-            if (response.chats.length == window.chats_.length) {
-              return
-            }
-
-            window.chats_ = response.chats
-            let html = "";
-            for (chat of window.chats_) {
-              html += `{% include "chat.html" %}`
-            }
-            $(".chats-box").html(html);
-          });
-      }
-
-      function setMessagesHtml(messages) {
-        // TODO(eugenhotaj): We need more robust checking here, e.g.
-        // that all the message_ids are the same.
-        if (messages.length == window.messages_.length) {
-          return
-        }
-
-        window.messages_ = messages
-        let html = "";
-        for (message of window.messages_) {
-          if (message.user.user_id === window.userId_) {
-            html += `{% include "message_sent.html" %}`
-          } else {
-            html += `{% include "message_received.html" %}`
-          }
-        }
-        $(".messages-box .list-group").html(html);
-        $(".messages-box").scrollTop($(".messages-box .list-group")[0].scrollHeight);
-      } 
-
-      function getMessages(userId, chatId) {
-        return $.get(`/messages?user_id=${userId}&chat_id=${chat_id}`, {})
-                .done(response => { setMessagesHtml(response.messages); });
-      }
-
-      function poll() {
-        setTimeout(() => {
-          getMessages(window.userId_, window.chatId_);
-          poll();
-        }, 50);
-      }
-
-      // Load initial data.
+      // NOTE(eugenhotaj): We include the JS via Jinja2 since we use
+      // Jinja2 templates in the JS code for dynamic rendering. Not great,
+      // but effective quick-and-dirty clientside rendering approach.
+      {% include "home.js" %}
       getChats(window.userId_)
         .done(response => {
           window.chatId_ = window.chatId_ || response.chats[0].chat_id;
@@ -178,14 +86,7 @@
             }
           }
         });
-
-      // Attach listener.
-      $("#send-message").click(() => {
-        $.post('/messages', {
-          "chat_id": window.chatId, "user_id": window.userId_, "message_text": $("#send-input").val()
-        }).done(response => { setMessagesHtml(response.messages); })
-        $("#send-input").val("");
-      });
+      pollServer();
     });
   </script>
   </body>
