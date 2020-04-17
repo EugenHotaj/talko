@@ -71,23 +71,10 @@
     integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" 
     crossorigin="anonymous"></script>
   <script>
-    $(document).ready(function() {
-      // NOTE(eugenhotaj): We include the JS via Jinja2 since we use
-      // Jinja2 templates in the JS code for dynamic rendering. Not great,
-      // but effective quick-and-dirty clientside rendering approach.
-      {% include "home.js" %}
-      getChats(window.userId_)
-        .done(response => {
-          window.chatId_ = window.chatId_ || response.chats[0].chat_id;
-          for (chat of response.chats) {
-            if (chat.chat_id == window.chatId_) {
-              setMessagesHtml(chat.messages);
-              return 
-            }
-          }
-        });
-      pollServer();
-    });
+  // NOTE(eugenhotaj): We include the JS via Jinja2 since we use
+  // Jinja2 templates in the JS code for dynamic rendering. Not great,
+  // but effective quick-and-dirty clientside rendering approach.
+  {% include "home.js" %}
   </script>
   </body>
 </html>

@@ -63,9 +63,11 @@ class MessagesWindow(Window):
         self._scr.border(0, 0, 0, 0, 
                          0, curses.ACS_TTEE, curses.ACS_LTEE, curses.ACS_RTEE)
 
-        # TODO(eugenhotaj): Use the actual chat name here.
         self._scr.addstr(0, 2, self._chat_name)
-        for i, message in enumerate(self._data[-10:]):
+        # TODO(eugenhotaj): Using self._height as the number of messages to 
+        # display assumes each messages will fit on a single line. We should
+        # use a pad here instead.
+        for i, message in enumerate(self._data[-self._height + 2:]):
             user , text = message['user'], message['message_text']
             text = f'{user["user_name"]}: {text}'
             self._scr.addstr(i + 1, 1, text)
