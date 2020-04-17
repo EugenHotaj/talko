@@ -29,15 +29,13 @@
           <div class="bg-gray px-4 py-2 bg-light">
             <p class="h5 mb-0 py-1">Recent</p>
           </div>
-          <div class="chats-box">
-            {% include "chats.html" %}
-          </div>
+          <div class="chats-box"></div>
         </div>
         
         <div class="col-8 px-0"> 
           <!-- Messges -->
           <div class="px-3 pt-4 messages-box bg-white">
-          {% include "messages.html" %}
+            <div class="list-group rounded-0"></div>
           </div>
 
           <!-- Typing area -->
@@ -74,44 +72,120 @@
     crossorigin="anonymous"></script>
   <script>
     $(document).ready(function() {
-      const user_id = {{ user_id }};
-      let chat_id = {{ chats[0].chat_id }};
-      let first_time = true;
+      window.userId_ = {{ user_id }};
+      window.chatId_ = undefined;
+      window.chats_ = [];
+      window.messages_ = [];
 
-      function getChats(user_id) {
-        $.get(`/chats?user_id=${user_id}`, {})
-          .done(html => { $(".chats-box").html(html); });
+      function timestampToDateTime(timestamp, include_time = true) {
+        const dateTime = new Date(timestamp);
+        let options = { month: 'long', day: 'numeric'};
+        if (include_time) {
+          options.hour = 'numeric';
+          options.minute = 'numeric';
+        }
+        return dateTime.toLocaleDateString('us-ES', options)
       }
 
-      function setMessagesHtml(html) {
-        // TODO(eugenhotaj): This is terrible...
-        const current_html = $(".messages-box").html();
-        $(".messages-box").html(html);
-        if (!current_html === html || first_time) {
-          $(".messages-box").scrollTop($(".messages-box")[0].scrollHeight);
-          first_time = false;
+      function getUserAvatarText(userName) {
+        text = "" 
+        for (split of userName.split(" ")) {
+          text += split[0]
+        }
+        return text
+      }
+
+      function getChatAvatarText(chat, userId) {
+        if (chat.users.length > 2) {
+          return `+${chat.users.length - 1}`;
+        }
+        for (user of chat.users) {
+          if (user.user_id != window.userId_) {
+            return getUserAvatarText(user.user_name);
+          }
         }
       }
 
-      function getMessages(user_id, chat_id) {
-        $.get(`/messages?user_id=${user_id}&chat_id=${chat_id}`, {})
-          .done(html => { setMessagesHtml(html); });
+      function getChatTitle(chat) {
+        if (chat.users.length > 2) {
+          return chat.chat_title;
+        }
+        for (user of chat.users) {
+          if (user.user_id != window.userId_) {
+            return user.user_name;
+          }
+        }
+      } 
+
+      function getChats(userId) {
+        return $.get(`/chats?user_id=${userId}`, {})
+          .done(response => { 
+            // TODO(eugenhotaj): We need more robust checking here, e.g.
+            // that all the chat_ids are the same.
+            if (response.chats.length == window.chats_.length) {
+              return
+            }
+
+            window.chats_ = response.chats
+            let html = "";
+            for (chat of window.chats_) {
+              html += `{% include "chat.html" %}`
+            }
+            $(".chats-box").html(html);
+          });
       }
 
-      $("#send-message").click(() => {
-        $.post('/messages', {
-          "chat_id": chat_id, "user_id": user_id, "message_text": $("#send-input").val()
-        }).done(html => { setMessagesHtml(html); })
-        $("#send-input").val("");
-      });
+      function setMessagesHtml(messages) {
+        // TODO(eugenhotaj): We need more robust checking here, e.g.
+        // that all the message_ids are the same.
+        if (messages.length == window.messages_.length) {
+          return
+        }
 
-      // Poll for ne messages every 10ms.
-      (function poll() {
+        window.messages_ = messages
+        let html = "";
+        for (message of window.messages_) {
+          if (message.user.user_id === window.userId_) {
+            html += `{% include "message_sent.html" %}`
+          } else {
+            html += `{% include "message_received.html" %}`
+          }
+        }
+        $(".messages-box .list-group").html(html);
+        $(".messages-box").scrollTop($(".messages-box .list-group")[0].scrollHeight);
+      } 
+
+      function getMessages(userId, chatId) {
+        return $.get(`/messages?user_id=${userId}&chat_id=${chat_id}`, {})
+                .done(response => { setMessagesHtml(response.messages); });
+      }
+
+      function poll() {
         setTimeout(() => {
-          getMessages(user_id, chat_id);
+          getMessages(window.userId_, window.chatId_);
           poll();
         }, 50);
-      })();
+      }
+
+      // Load initial data.
+      getChats(window.userId_)
+        .done(response => {
+          window.chatId_ = window.chatId_ || response.chats[0].chat_id;
+          for (chat of response.chats) {
+            if (chat.chat_id == window.chatId_) {
+              setMessagesHtml(chat.messages);
+              return 
+            }
+          }
+        });
+
+      // Attach listener.
+      $("#send-message").click(() => {
+        $.post('/messages', {
+          "chat_id": window.chatId, "user_id": window.userId_, "message_text": $("#send-input").val()
+        }).done(response => { setMessagesHtml(response.messages); })
+        $("#send-input").val("");
+      });
     });
   </script>
   </body>

@@ -22,22 +22,18 @@ def main(data_address, broadcast_address):
     @app.route('/index')
     def home():
         user_id = int(flask.request.args.get('user_id'))
-        chats = backend_client.get_chats(user_id)['chats']
-        return flask.render_template('home.html', user_id=user_id, chats=chats)
+        return flask.render_template('home.html', user_id=user_id)
 
     @app.route('/chats')
     def get_chats():
         user_id = int(flask.request.args.get('user_id'))
-        chats = backend_client.get_chats(user_id)['chats']
-        return flask.render_template('chats.html', user_id=user_id, chats=chats)
+        return backend_client.get_chats(user_id)
 
     @app.route('/messages')
     def get_messages():
         user_id = int(flask.request.args.get('user_id'))
         chat_id = int(flask.request.args.get('chat_id'))
-        messages = backend_client.get_messages(chat_id)['messages']
-        return flask.render_template(
-                'messages.html', user_id=user_id, messages=messages)
+        return backend_client.get_messages(chat_id)
 
     @app.route('/messages', methods=['POST'])
     def insert_message():
@@ -52,58 +48,5 @@ def main(data_address, broadcast_address):
         return flask.render_template(
                 'messages.html', user_id=int(user_id), messages=messages)
         
-
-    def _user_avatar_text(user_name):
-        return ''.join([split[0] for split in user_name.split(' ')])
-
-
-    @app.context_processor
-    def chat_avatar_text():
-
-        def _fn(chat, user_id):
-            if len(chat['users']) > 2:
-                return f'+{len(chat["users"]) - 1}'
-            user_id = int(user_id)
-            other = [u for u in chat['users'] if u['user_id'] != user_id][0]
-            return _user_avatar_text(other['user_name'])
-
-        return dict(chat_avatar_text=_fn)
-
-
-    @app.context_processor
-    def user_avatar_text():
-
-        def _fn(user):
-            return _user_avatar_text(user['user_name'])
-
-        return dict(user_avatar_text=_fn)
-
-
-    @app.context_processor
-    def title():
-
-        def _fn(chat, user_id):
-            if len(chat['users']) > 2:
-                return chat['title']
-            user_id = int(user_id)
-            other = [u for u in chat['users'] if u['user_id'] != user_id][0]
-            return other['user_name']
-
-        return dict(title=_fn)
-
-
-    @app.template_filter('date')
-    def timestamp_to_date(timestamp):
-        timestamp /= 1000
-        dt = datetime.fromtimestamp(timestamp)
-        return datetime.strftime(dt, '%B %d')
-
-
-    @app.template_filter('datetime')
-    def timestamp_to_datetime(timestamp):
-        timestamp /= 1000
-        dt = datetime.fromtimestamp(timestamp)
-        return datetime.strftime(dt, '%B %d | %I:%M %p')
-
 
     app.run(debug=True)
