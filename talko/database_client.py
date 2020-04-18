@@ -43,7 +43,7 @@ def create_database(db_path, overwrite=False):
         if not overwrite:
             return
         os.remove(db_path)
-    sql = open('schema.sql', 'r').read()
+    sql = open('talko/schema.sql', 'r').read()
     connection = sqlite3.connect(db_path)
     with connection:
         connection.executescript(sql)

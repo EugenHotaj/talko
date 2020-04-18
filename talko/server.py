@@ -16,14 +16,14 @@ from talko import socket_lib
 # NOTE(eugenhotaj): We use processes instead of threads to get around the GIL.
 MAX_WORKERS = 10000
 
-# TODO(eugenhotaj): Add more robust logging capabilities.
-os.makedirs('/tmp/talko', exist_ok=True)
-logging.basicConfig(
-        filename='/tmp/talko/log.info',
-        filemode='w',
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)s %(pathname)s:%(lineno)s %(message)s', 
-        datefmt='%m/%d/%Y %I:%M:%S %p')
+# # TODO(eugenhotaj): Add more robust logging capabilities.
+# os.makedirs('/tmp/talko', exist_ok=True)
+# logging.basicConfig(
+#         filename='/tmp/talko/log.info',
+#         filemode='w',
+#         level=logging.INFO,
+#         format='%(asctime)s %(levelname)s %(pathname)s:%(lineno)s %(message)s', 
+#         datefmt='%m/%d/%Y %I:%M:%S %p')
 
 class Server:
     """A Server which can handle concurrent requests via processes.
@@ -60,12 +60,12 @@ class Server:
         raise NotImplementedError()
 
     def _handle_request(self, client_socket, host, port):
-        logging.info(f'Connection from {host}:{port} established')
+        # logging.info(f'Connection from {host}:{port} established')
         try:
             keep_alive = self.handle_request(client_socket)
             if not keep_alive:
                 client_socket.close()
-                logging.info(f'Connection from {host}:{port} closed')
+                # logging.info(f'Connection from {host}:{port} closed')
         except Exception:
             client_socket.close()
             raise
@@ -100,7 +100,7 @@ class Server:
                     # If the server is overloaded, shed any new connections.
                     client_socket.shutdown(socket.SHUT_RDWR)
                     client_socket.close()
-                    logging.warning(f'Connection from {host}:{port} shed')
+                    # logging.warning(f'Connection from {host}:{port} shed')
  
 
 class DataServer(Server):

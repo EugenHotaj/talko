@@ -51,4 +51,5 @@ def main(data_address, broadcast_address):
         user_id = int(flask.request.args.get('user_id'))
         return backend_client.receive_one_message(user_id, timeout=25)
 
-    app.run(debug=True)
+    port = os.environ['PORT'] if 'PORT' in os.environ else None
+    app.run(host='0.0.0.0', port=port)
