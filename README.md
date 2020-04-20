@@ -5,9 +5,9 @@ no requests, no frameworks.*
 
 <div align="center">
   <img src="images/talko_demo.gif">
-  <p>
+  <p><i>
     Talko in action. (Left) The web application UI. (Right) The ncurses UI.
-  </p>
+  </i></p>
 </div>
 
 Talko began as an exercise to understand how the internet works by reinventing
@@ -35,7 +35,7 @@ python3 main.py --ui_client=webapp --db_path=database.db --recreate_db=True \
 
 <div align="center">
   <img src="images/architecture.svg" width="400" height="400">
-  <p>High level architecture of the Talko application.</p>
+  <p><i>High level architecture of the Talko application.</i></p>
 </div>
 
 At a high level, Talko is designed as a client-server microservice architecture.
