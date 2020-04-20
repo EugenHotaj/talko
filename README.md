@@ -27,7 +27,10 @@ http://localhost:5000.
 git clone http://www.github.com/eugenhotaj/talko
 cd talko
 pip install -r requirements.txt
-python3 main.py --ui_client=webapp --db_path=database.db --recreate_db=True \
+python3 main.py \
+    --ui_client=webapp \ 
+    --db_path=database.db \
+    --recreate_db=True \
     --insert_fake_chat=True
 ```
 
