@@ -13,6 +13,7 @@ from talko import database_client
 from talko import protocol
 from talko import socket_lib
 
+
 # NOTE(eugenhotaj): We use processes instead of threads to get around the GIL.
 MAX_WORKERS = 10000
 
@@ -173,7 +174,7 @@ class DataServer(Server):
                 chat = protocol.Chat(
                     chat.chat_id, chat_name, users, messages)
                 chats.append(chat)
-            chats = sorted(chats, key=lambda chat: chat.messages[-1].message_ts)
+            chats = sorted(chats, key=lambda chat: chat.messages[-1].message_ts,
             response = protocol.GetChatsResponse(chats)
         elif method == 'InsertChat':
             request = protocol.InsertChatRequest.from_json(params)

@@ -35,7 +35,7 @@ python3 main.py --ui_client=webapp --db_path=database.db --recreate_db=True \
 
 <div align="center">
   <img src="images/architecture.svg" width="400" height="400">
-  <p>High level architecture of the Talko application.</p>
+  <p>*High level architecture of the Talko application.*</p>
 </div>
 
 At a high level, Talko is designed as a client-server microservice architecture.
@@ -78,9 +78,7 @@ protocol is built entirely on top of TCP sockets and is implemented in
 header followed by a `utf-8` encoded binary payload. The header simply encodes 
 the size of the payload in bytes. To receive a message, we first read `10` bytes
 from the socket stream then read the rest of the `n` byte payload (where `n`
-is the value encoded in the first `10` bytes). *NOTE: A better protocol might 
-be to eschew headers entirely by always sending fixed-length packets (e.g. 
-`1024` bytes) and padding smaller packets to the fixed length.*
+is the value encoded in the first `10` bytes).
 
 TCP sockets are primarily designed to stream data bi-directionally and do not
 inherently have a concept of requests/responses. We enforce this aspect by 

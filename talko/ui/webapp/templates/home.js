@@ -33,13 +33,13 @@ $(document).ready(function() {
   }
 
   function setChatsHtml(chats) {
-    chats.sort((left, right) => {
-      left_ts = left.messages[left.messages.length - 1];
-      right_ts = right.messages[right.messages.length - 1];
-      return left_ts - right_ts;
-    });
     let html = "";
     for (chat of chats) {
+      let activeHtml = 
+        chat.chat_id == window.chatId_ ? "active text-white" : "";
+      console.log(chat.chat_id)
+      console.log(window.chatId_)
+      console.log(activeHtml)
       html += `{% include "chat.html" %}`;
     }
     $(".chats-box").html(html);
@@ -51,7 +51,6 @@ $(document).ready(function() {
         for (chat of response.chats) {
           window.chats_[chat.chat_id] = chat;
         }
-        setChatsHtml(Object.values(window.chats_));
       });
   }
 
@@ -121,6 +120,10 @@ $(document).ready(function() {
           return 
         }
       }
+    })
+    .done(unusedResponse => {
+        setChatsHtml(Object.values(window.chats_));
     });
+
   pollServer();
 });
