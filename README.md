@@ -37,7 +37,7 @@ python3 main.py \
 ## Design
 
 <div align="center">
-  <img src="images/talko_architecture.jpeg" width="400" height="400">
+  <img src="images/talko_architecture.jpeg">
   <p><i>High level architecture of the Talko application.</i></p>
 </div>
 
